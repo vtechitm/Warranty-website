@@ -1,0 +1,16 @@
+# Local development database only. Usage: docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vtech
+      POSTGRES_PASSWORD: vtech_dev_password
+      POSTGRES_DB: vtech_warranty
+    ports: ["55450:5432"]
+    volumes: ["warranty_pg_dev:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vtech"]
+      interval: 5s
+      retries: 10
+volumes:
+  warranty_pg_dev:

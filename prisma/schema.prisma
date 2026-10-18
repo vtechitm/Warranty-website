@@ -1,0 +1,675 @@
+// Vtech Dental Warranty Platform — database schema
+// Conventions: UUID primary keys, createdAt/updatedAt on mutable tables,
+// soft deletion (deletedAt) for business records, audit rows are append-only.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── Enums ───────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  BRAND_ADMIN
+  LAB_ADMIN
+  LAB_STAFF
+  CLINIC_USER
+  PATIENT
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum SessionKind {
+  WEB
+  MOBILE
+}
+
+enum LaboratoryStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum BatchStatus {
+  PENDING
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum AssignmentStatus {
+  UNASSIGNED
+  ASSIGNED
+}
+
+enum ActivationStatus {
+  NOT_ACTIVATED
+  ACTIVATED
+}
+
+enum WarrantyStartRule {
+  INSTALLATION_DATE
+  ACTIVATION_DATE
+  COMPLETION_DATE
+}
+
+enum InstallationStatus {
+  CONFIRMED
+  PENDING_CONFIRMATION
+}
+
+enum ClaimStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ADDITIONAL_INFO_REQUIRED
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum ClaimantType {
+  PATIENT
+  CLINIC
+  LABORATORY
+}
+
+enum PatientLinkMethod {
+  ACCESS_CODE
+  PHONE_OTP
+  ADMIN
+}
+
+enum VerificationMethod {
+  ACCESS_CODE
+  PHONE_NUMBER
+  PHONE_OTP
+}
+
+enum CertificateLayout {
+  CLASSIC
+  PREMIUM
+}
+
+// ─────────────────────────────── Identity ───────────────────────────────
+
+model User {
+  id               String     @id @default(uuid()) @db.Uuid
+  email            String     @unique
+  name             String
+  phone            String?
+  passwordHash     String?
+  role             Role
+  status           UserStatus @default(INVITED)
+  laboratoryId     String?    @db.Uuid
+  clinicId         String?    @db.Uuid
+  failedLoginCount Int        @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+
+  laboratory  Laboratory?       @relation(fields: [laboratoryId], references: [id])
+  clinic      Clinic?           @relation(fields: [clinicId], references: [id])
+  brands      UserBrand[]
+  sessions    DeviceSession[]
+  invitations UserInvitation[]
+  patient     PatientAccount?
+  notificationPreference NotificationPreference?
+
+  activations     WarrantyActivation[]
+  createdBatches  WarrantyBatch[]
+  auditLogs       AuditLog[]
+
+  @@index([laboratoryId])
+  @@index([role])
+}
+
+/// Brands a BRAND_ADMIN may manage.
+model UserBrand {
+  userId  String @db.Uuid
+  brandId String @db.Uuid
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@id([userId, brandId])
+}
+
+model UserInvitation {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Web cookie sessions and mobile refresh-token sessions (rotation with reuse detection).
+model DeviceSession {
+  id               String      @id @default(uuid()) @db.Uuid
+  userId           String      @db.Uuid
+  kind             SessionKind
+  tokenHash        String      @unique
+  previousTokenHash String?    @unique
+  deviceName       String?
+  userAgent        String?
+  ip               String?
+  expiresAt        DateTime
+  lastUsedAt       DateTime    @default(now())
+  revokedAt        DateTime?
+  createdAt        DateTime    @default(now())
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @db.Uuid
+  emailEnabled      Boolean  @default(true)
+  smsEnabled        Boolean  @default(false)
+  zaloEnabled       Boolean  @default(false)
+  pushEnabled       Boolean  @default(false)
+  warrantyReminders Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────── Brands & catalog ───────────────────────────────
+
+model Brand {
+  id             String   @id @default(uuid()) @db.Uuid
+  slug           String   @unique
+  name           String
+  /// 3-letter prefix used in public warranty codes, e.g. ORG -> ORG26-K8M4P2X9
+  codePrefix     String   @unique
+  tagline        String?
+  logoUrl        String?
+  primaryColor   String   @default("#0B1F3A")
+  secondaryColor String   @default("#C9A96E")
+  accentColor    String   @default("#F5F5F7")
+  supportPhone   String?
+  supportEmail   String?
+  supportUrl     String?
+  websiteUrl     String?
+  landingConfig  Json     @default("{}")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  domains      BrandDomain[]
+  products     Product[]
+  laboratories LaboratoryBrand[]
+  batches      WarrantyBatch[]
+  codes        WarrantyCode[]
+  admins       UserBrand[]
+  templates    CertificateTemplate[]
+}
+
+model BrandDomain {
+  id                String    @id @default(uuid()) @db.Uuid
+  brandId           String    @db.Uuid
+  hostname          String    @unique
+  isPrimary         Boolean   @default(false)
+  /// Only verified hostnames are trusted for Host-header brand resolution.
+  verifiedAt        DateTime?
+  verificationToken String
+  /// When true, requests on this host are redirected to the brand's primary domain.
+  redirectToPrimary Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  brand             Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+}
+
+model Product {
+  id           String    @id @default(uuid()) @db.Uuid
+  brandId      String    @db.Uuid
+  sku          String
+  name         String
+  description  String?
+  materialType String?
+  imageUrl     String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  brand    Brand            @relation(fields: [brandId], references: [id])
+  policies WarrantyPolicy[]
+  lots     MaterialLot[]
+  batches  WarrantyBatch[]
+  codes    WarrantyCode[]
+  cases    RestorationCase[]
+  units    RestorationUnit[]
+
+  @@unique([brandId, sku])
+  @@index([brandId])
+}
+
+/// Versioned warranty policies. Activations store a snapshot + the policy id/version used.
+model WarrantyPolicy {
+  id                String            @id @default(uuid()) @db.Uuid
+  productId         String            @db.Uuid
+  version           Int
+  durationMonths    Int
+  startRule         WarrantyStartRule @default(INSTALLATION_DATE)
+  conditions        String?
+  exclusions        String?
+  claimInstructions String?
+  careInstructions  String?
+  benefits          String?
+  effectiveFrom     DateTime          @default(now())
+  isCurrent         Boolean           @default(true)
+  createdById       String?           @db.Uuid
+  createdAt         DateTime          @default(now())
+
+  product Product           @relation(fields: [productId], references: [id])
+  cases   RestorationCase[]
+
+  @@unique([productId, version])
+  @@index([productId, isCurrent])
+}
+
+model MaterialLot {
+  id             String    @id @default(uuid()) @db.Uuid
+  productId      String    @db.Uuid
+  lotNumber      String
+  manufacturedAt DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  product        Product   @relation(fields: [productId], references: [id])
+  units          RestorationUnit[]
+
+  @@unique([productId, lotNumber])
+}
+
+model CertificateTemplate {
+  id        String            @id @default(uuid()) @db.Uuid
+  brandId   String?           @db.Uuid
+  name      String
+  layout    CertificateLayout @default(PREMIUM)
+  config    Json              @default("{}")
+  isDefault Boolean           @default(false)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  brand     Brand?            @relation(fields: [brandId], references: [id])
+}
+
+// ─────────────────────────────── Laboratories & clinics ───────────────────────────────
+
+model Laboratory {
+  id            String           @id @default(uuid()) @db.Uuid
+  code          String           @unique
+  name          String
+  address       String?
+  contactPerson String?
+  phone         String?
+  email         String?
+  taxCode       String?
+  status        LaboratoryStatus @default(ACTIVE)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  deletedAt     DateTime?
+
+  users       User[]
+  brands      LaboratoryBrand[]
+  codes       WarrantyCode[]
+  assignments WarrantyAssignment[]
+  clinics     Clinic[]
+  patients    Patient[]
+  cases       RestorationCase[]
+  activations WarrantyActivation[]
+}
+
+model LaboratoryBrand {
+  laboratoryId String     @db.Uuid
+  brandId      String     @db.Uuid
+  createdAt    DateTime   @default(now())
+  laboratory   Laboratory @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+  brand        Brand      @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@id([laboratoryId, brandId])
+}
+
+/// Clinics are owned by the laboratory that created them (laboratoryId) or global (null, admin-managed).
+model Clinic {
+  id           String    @id @default(uuid()) @db.Uuid
+  laboratoryId String?   @db.Uuid
+  name         String
+  address      String?
+  phone        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  laboratory Laboratory?       @relation(fields: [laboratoryId], references: [id])
+  users      User[]
+  cases      RestorationCase[]
+
+  @@index([laboratoryId, name])
+}
+
+// ─────────────────────────────── Warranty codes ───────────────────────────────
+
+model WarrantyBatch {
+  id             String      @id @default(uuid()) @db.Uuid
+  batchNumber    String      @unique
+  brandId        String      @db.Uuid
+  productId      String      @db.Uuid
+  quantity       Int
+  generatedCount Int         @default(0)
+  status         BatchStatus @default(PENDING)
+  /// Base URL printed into every QR in this batch. Fixed forever once generated.
+  qrBaseUrl      String
+  notes          String?
+  error          String?
+  createdById    String?     @db.Uuid
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  completedAt    DateTime?
+
+  brand     Brand          @relation(fields: [brandId], references: [id])
+  product   Product        @relation(fields: [productId], references: [id])
+  createdBy User?          @relation(fields: [createdById], references: [id])
+  codes     WarrantyCode[]
+
+  @@index([brandId, createdAt])
+  @@index([productId])
+}
+
+/// One code = one restoration case. The public `code` and its QR URL never change.
+model WarrantyCode {
+  id                   String           @id @default(uuid()) @db.Uuid
+  code                 String           @unique
+  brandId              String           @db.Uuid
+  productId            String           @db.Uuid
+  batchId              String           @db.Uuid
+  /// Position of the card inside its batch (print order). Not a public identifier.
+  serial               Int
+  assignmentStatus     AssignmentStatus @default(UNASSIGNED)
+  activationStatus     ActivationStatus @default(NOT_ACTIVATED)
+  assignedLaboratoryId String?          @db.Uuid
+  assignedAt           DateTime?
+  activatedAt          DateTime?
+  revokedAt            DateTime?
+  revokedReason        String?
+  revokedById          String?          @db.Uuid
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  brand              Brand                @relation(fields: [brandId], references: [id])
+  product            Product              @relation(fields: [productId], references: [id])
+  batch              WarrantyBatch        @relation(fields: [batchId], references: [id])
+  assignedLaboratory Laboratory?          @relation(fields: [assignedLaboratoryId], references: [id])
+  assignments        WarrantyAssignment[]
+  case               RestorationCase?
+  activation         WarrantyActivation?
+  claims             WarrantyClaim[]
+  verifications      PatientAccessVerification[]
+  otpChallenges      PatientOtpChallenge[]
+
+  @@unique([batchId, serial])
+  @@index([assignedLaboratoryId, activationStatus])
+  @@index([brandId, activationStatus])
+  @@index([productId])
+  @@index([activatedAt])
+}
+
+/// Assignment history (codes can be re-assigned before activation).
+model WarrantyAssignment {
+  id             String     @id @default(uuid()) @db.Uuid
+  warrantyCodeId String     @db.Uuid
+  laboratoryId   String     @db.Uuid
+  assignedById   String?    @db.Uuid
+  assignedAt     DateTime   @default(now())
+  unassignedAt   DateTime?
+  note           String?
+
+  warrantyCode WarrantyCode @relation(fields: [warrantyCodeId], references: [id])
+  laboratory   Laboratory   @relation(fields: [laboratoryId], references: [id])
+
+  @@index([warrantyCodeId])
+  @@index([laboratoryId, assignedAt])
+}
+
+// ─────────────────────────────── Patients & restorations ───────────────────────────────
+
+/// Patient record entered by a laboratory. Never merged automatically by name/phone.
+model Patient {
+  id             String    @id @default(uuid()) @db.Uuid
+  laboratoryId   String    @db.Uuid
+  fullName       String
+  /// AES-256-GCM encrypted phone number (encryption at rest).
+  phoneEnc       String?
+  /// Keyed HMAC of the normalized phone, for exact-match search & verification.
+  phoneHash      String?
+  birthYear      Int?
+  externalRef    String?
+  consentAt      DateTime?
+  consentVersion String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  laboratory Laboratory        @relation(fields: [laboratoryId], references: [id])
+  cases      RestorationCase[]
+
+  @@index([laboratoryId, fullName])
+  @@index([phoneHash])
+}
+
+model PatientAccount {
+  id              String                @id @default(uuid()) @db.Uuid
+  userId          String                @unique @db.Uuid
+  phoneNormalized String?
+  phoneVerifiedAt DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links           PatientWarrantyLink[]
+}
+
+/// Verified link between a patient account and a restoration case.
+model PatientWarrantyLink {
+  id                String            @id @default(uuid()) @db.Uuid
+  patientAccountId  String            @db.Uuid
+  restorationCaseId String            @db.Uuid
+  method            PatientLinkMethod
+  verifiedAt        DateTime          @default(now())
+  createdAt         DateTime          @default(now())
+
+  patientAccount  PatientAccount  @relation(fields: [patientAccountId], references: [id], onDelete: Cascade)
+  restorationCase RestorationCase @relation(fields: [restorationCaseId], references: [id])
+
+  @@unique([patientAccountId, restorationCaseId])
+}
+
+model RestorationCase {
+  id                 String             @id @default(uuid()) @db.Uuid
+  warrantyCodeId     String             @unique @db.Uuid
+  laboratoryId       String             @db.Uuid
+  patientId          String             @db.Uuid
+  clinicId           String?            @db.Uuid
+  brandId            String             @db.Uuid
+  productId          String             @db.Uuid
+  clinicName         String?
+  dentistName        String?
+  clinicPhone        String?
+  restorationType    String
+  unitCount          Int
+  completionDate     DateTime?          @db.Date
+  installationDate   DateTime?          @db.Date
+  installationStatus InstallationStatus
+  warrantyStartDate  DateTime?          @db.Date
+  warrantyEndDate    DateTime?          @db.Date
+  suspendedAt        DateTime?
+  suspendedReason    String?
+  notes              String?
+  policyId           String             @db.Uuid
+  policyVersion      Int
+  /// Frozen copy of the policy applied at activation (terms never change silently).
+  policySnapshot     Json
+  /// Hash of the patient access code printed on the certificate (used for verification).
+  accessCodeHash     String
+  /// Same code, encrypted, so authorized lab/admin users can reprint the certificate.
+  accessCodeEnc      String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  warrantyCode WarrantyCode          @relation(fields: [warrantyCodeId], references: [id])
+  laboratory   Laboratory            @relation(fields: [laboratoryId], references: [id])
+  patient      Patient               @relation(fields: [patientId], references: [id])
+  clinic       Clinic?               @relation(fields: [clinicId], references: [id])
+  product      Product               @relation(fields: [productId], references: [id])
+  policy       WarrantyPolicy        @relation(fields: [policyId], references: [id])
+  units        RestorationUnit[]
+  links        PatientWarrantyLink[]
+  claims       WarrantyClaim[]
+
+  @@index([laboratoryId, createdAt])
+  @@index([clinicId])
+  @@index([warrantyEndDate])
+}
+
+model RestorationUnit {
+  id                String          @id @default(uuid()) @db.Uuid
+  restorationCaseId String          @db.Uuid
+  /// FDI two-digit tooth number (11–48, 51–85 for primary teeth).
+  toothNumber       Int
+  restorationType   String
+  productId         String          @db.Uuid
+  materialLotId     String?         @db.Uuid
+  shade             String?
+  notes             String?
+  createdAt         DateTime        @default(now())
+
+  restorationCase RestorationCase @relation(fields: [restorationCaseId], references: [id], onDelete: Cascade)
+  product         Product         @relation(fields: [productId], references: [id])
+  materialLot     MaterialLot?    @relation(fields: [materialLotId], references: [id])
+
+  @@unique([restorationCaseId, toothNumber])
+}
+
+model WarrantyActivation {
+  id                String   @id @default(uuid()) @db.Uuid
+  warrantyCodeId    String   @unique @db.Uuid
+  restorationCaseId String   @unique @db.Uuid
+  laboratoryId      String   @db.Uuid
+  activatedById     String   @db.Uuid
+  policyVersion     Int
+  ip                String?
+  userAgent         String?
+  activatedAt       DateTime @default(now())
+
+  warrantyCode WarrantyCode @relation(fields: [warrantyCodeId], references: [id])
+  laboratory   Laboratory   @relation(fields: [laboratoryId], references: [id])
+  activatedBy  User         @relation(fields: [activatedById], references: [id])
+
+  @@index([laboratoryId, activatedAt])
+  @@index([activatedAt])
+}
+
+/// Rate-limited patient identity verification attempts for private record disclosure.
+model PatientAccessVerification {
+  id             String             @id @default(uuid()) @db.Uuid
+  warrantyCodeId String             @db.Uuid
+  method         VerificationMethod
+  success        Boolean
+  ip             String?
+  createdAt      DateTime           @default(now())
+  warrantyCode   WarrantyCode       @relation(fields: [warrantyCodeId], references: [id])
+
+  @@index([warrantyCodeId, createdAt])
+}
+
+/// One-time codes sent to the patient's registered phone (PHONE_OTP verification).
+/// Only an HMAC of the code is stored; challenges are single use, short lived and attempt limited.
+model PatientOtpChallenge {
+  id             String       @id @default(uuid()) @db.Uuid
+  warrantyCodeId String       @db.Uuid
+  codeHash       String
+  provider       String
+  attempts       Int          @default(0)
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  ip             String?
+  createdAt      DateTime     @default(now())
+  warrantyCode   WarrantyCode @relation(fields: [warrantyCodeId], references: [id])
+
+  @@index([warrantyCodeId, createdAt])
+}
+
+// ─────────────────────────────── Claims ───────────────────────────────
+
+model WarrantyClaim {
+  id                String       @id @default(uuid()) @db.Uuid
+  claimNumber       String       @unique
+  warrantyCodeId    String       @db.Uuid
+  restorationCaseId String       @db.Uuid
+  claimantType      ClaimantType
+  claimantName      String
+  contactPhone      String?
+  contactEmail      String?
+  description       String
+  imageUrls         String[]     @default([])
+  status            ClaimStatus  @default(SUBMITTED)
+  submittedById     String?      @db.Uuid
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  warrantyCode    WarrantyCode       @relation(fields: [warrantyCodeId], references: [id])
+  restorationCase RestorationCase    @relation(fields: [restorationCaseId], references: [id])
+  events          WarrantyClaimEvent[]
+
+  @@index([status, createdAt])
+  @@index([warrantyCodeId])
+}
+
+model WarrantyClaimEvent {
+  id         String       @id @default(uuid()) @db.Uuid
+  claimId    String       @db.Uuid
+  fromStatus ClaimStatus?
+  toStatus   ClaimStatus
+  note       String?
+  actorId    String?      @db.Uuid
+  createdAt  DateTime     @default(now())
+  claim      WarrantyClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([claimId, createdAt])
+}
+
+// ─────────────────────────────── Audit ───────────────────────────────
+
+/// Append-only audit trail of every activation and administrative change.
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  actorId      String?  @db.Uuid
+  actorRole    Role?
+  action       String
+  entityType   String
+  entityId     String?
+  laboratoryId String?  @db.Uuid
+  metadata     Json     @default("{}")
+  ip           String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  actor        User?    @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@index([action])
+}

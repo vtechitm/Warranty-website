@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-vietnam), ui-sans-serif, system-ui, sans-serif;
+  --color-navy-950: #050f1f;
+  --color-navy-900: #0b1f3a;
+  --color-navy-800: #12305a;
+  --color-navy-700: #1b4277;
+  --color-gold-300: #e6d3ad;
+  --color-gold-400: #d8bf8c;
+  --color-gold-500: #c9a96e;
+  --color-gold-600: #a98a52;
+  --color-ink: #1f2430;
+  --color-muted: #6b7280;
+  --color-line: #e5e7eb;
+  --color-surface: #f6f7f9;
+}
+
+:root {
+  --brand-primary: #0b1f3a;
+  --brand-secondary: #c9a96e;
+  --brand-accent: #f5f5f7;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  @apply bg-surface text-ink antialiased;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-line bg-white shadow-[0_1px_2px_rgba(16,24,40,.04)];
+  }
+  .table-base {
+    @apply w-full text-sm;
+  }
+  .table-base th {
+    @apply bg-surface px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted whitespace-nowrap;
+  }
+  .table-base td {
+    @apply border-t border-line px-4 py-3 align-middle;
+  }
+  .table-base tbody tr:hover td {
+    @apply bg-slate-50/60;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ink;
+  }
+  .field {
+    @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none transition placeholder:text-slate-400 focus:border-navy-700 focus:ring-4 focus:ring-navy-700/10 disabled:bg-surface;
+  }
+  .mono {
+    font-feature-settings: "tnum" 1, "zero" 1;
+    letter-spacing: 0.04em;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
