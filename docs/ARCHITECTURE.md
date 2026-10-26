@@ -75,7 +75,7 @@ Key indexes: `WarrantyCode(code) UNIQUE`, `(batchId, serial) UNIQUE`, `(assigned
 
 ### Code format & generation
 
-`{BRAND PREFIX}{YY}-{8 random}` e.g. `ORG26-K8M4P2X9`. Random part uses `crypto.randomInt` over a 30-symbol alphabet without look-alikes (no 0/O/1/I/L/U) → 30⁸ ≈ 6.6·10¹¹ per prefix-year. Uniqueness is guaranteed by the DB unique index (`createMany … skipDuplicates`, regenerate on collision). Batches ≤ 2,000 are generated inline; larger batches run as a background job (in-process; swap for a queue such as pg-boss/BullMQ if you run several app instances). 10,000 codes take a few seconds.
+`{2-letter brand prefix}{8 random digits}` e.g. `OR48291037` (easy to read out and type on a numeric keypad; may be typed with spaces/hyphens, which are stripped). Digits come from `crypto.randomInt`, deliberately **not sequential** so a card cannot be used to guess other valid codes; the print order is the separate per-batch `serial`. 10⁸ codes per brand prefix. Legacy demo codes in the old `ORG26-K8M4P2X9` format are still recognized. Uniqueness is guaranteed by the DB unique index (`createMany … skipDuplicates`, regenerate on collision). Batches ≤ 2,000 are generated inline; larger batches run as a background job (in-process; swap for a queue such as pg-boss/BullMQ if you run several app instances). 10,000 codes take a few seconds.
 
 ## 4. Permission matrix
 

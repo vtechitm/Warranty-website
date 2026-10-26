@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileSpreadsheet, FileText, FolderArchive, Loader2, Send } from "lucide-react";
+import { FileSpreadsheet, FileText, FolderArchive, Loader2, Package, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { apiFetch } from "@/lib/api-client";
@@ -106,8 +106,17 @@ export function ExportPanel({ batchId, total, templates }: { batchId: string; to
   return (
     <section className="card p-5">
       <h2 className="font-semibold">Xuất dữ liệu & in nhãn</h2>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        <a href={`/api/v1/batches/${batchId}/export`}><Button variant="outline" className="w-full"><FileSpreadsheet /> Excel</Button></a>
+      <div className="mt-4 rounded-2xl border border-gold-500/40 bg-gold-300/10 p-4">
+        <div className="text-sm font-semibold">Gói dữ liệu cho nhà in thẻ</div>
+        <p className="mt-1 text-xs text-muted">
+          Một tệp ZIP gồm: Excel có ảnh QR từng mã, tệp CSV để trộn in hàng loạt (InDesign Data Merge, CorelDRAW, BarTender), ảnh QR PNG + SVG và hướng dẫn in. Theo khoảng serial bên dưới (tối đa 10.000 mã/gói).
+        </p>
+        <a href={`/api/v1/batches/${batchId}/print-package?${range}`} className="mt-3 block">
+          <Button variant="gold" className="w-full"><Package /> Tải gói dữ liệu in ({Math.max(0, to - from + 1).toLocaleString("vi-VN")} mã)</Button>
+        </a>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <a href={`/api/v1/batches/${batchId}/export`}><Button variant="outline" className="w-full"><FileSpreadsheet /> Excel + ảnh QR</Button></a>
         <a href={`/api/v1/batches/${batchId}/qr-zip?format=png&${range}`}><Button variant="outline" className="w-full"><FolderArchive /> ZIP PNG</Button></a>
         <a href={`/api/v1/batches/${batchId}/qr-zip?format=svg&${range}`}><Button variant="outline" className="w-full"><FolderArchive /> ZIP SVG</Button></a>
       </div>

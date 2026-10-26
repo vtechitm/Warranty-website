@@ -92,7 +92,7 @@ export function ImportWizard() {
         <div className="mt-5 rounded-xl bg-surface p-4 text-xs text-muted">
           <div className="mb-2 font-semibold text-ink">Định dạng</div>
           Dòng tiêu đề (không bắt buộc) gồm cột <b>Mã bảo hành</b> (hoặc <code>code</code>) và <b>Mã labo</b> (hoặc <code>lab</code>). Không có tiêu đề: cột A = mã bảo hành, cột B = mã labo.
-          <pre className="mono mt-2 rounded-lg bg-white p-2 text-[11px] text-ink">{"code,lab\nORG26-K8M4P2X9,LAB-0001\nORG26-7RT3QW2M,LAB-0002"}</pre>
+          <pre className="mono mt-2 rounded-lg bg-white p-2 text-[11px] text-ink">{"code,lab\nOR48291037,LAB-0001\nOR90731462,LAB-0002"}</pre>
         </div>
       </section>
 

@@ -16,6 +16,8 @@ import { LocalStorage, S3Storage, setStorage } from "@/server/storage";
 import { ConsoleOtpProvider, setOtpProvider } from "@/server/otp";
 import { POST as passportClaimRoute } from "@/app/api/v1/passports/[code]/claims/route";
 import { GET as claimImageRoute } from "@/app/api/v1/claims/[id]/images/[name]/route";
+import JSZip from "jszip";
+import { exportBatchPrintPackage, exportBatchXlsx, exportWarrantiesXlsx, qrFileName } from "@/server/services/exports";
 import { activationInput, makeUser, resetDb, seedBasics } from "./helpers";
 
 type Ctx = Awaited<ReturnType<typeof seedBasics>>;
@@ -250,5 +252,50 @@ describe("phone OTP verification", () => {
     setOtpProvider(null);
     const { code } = await activeCode();
     await expectAppError(requestPatientOtp(code, "0901234567"), "BAD_REQUEST", "OTP_UNAVAILABLE");
+  });
+});
+
+describe("print exports", () => {
+  it("batch Excel embeds one QR picture per code next to its URL and file name", async () => {
+    const codes = await codesOf(3);
+    const batchId = codes[0].batchId;
+    const { buffer } = await exportBatchXlsx(ctx.admin, batchId);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+    const ws = wb.worksheets[0];
+    expect(ws.getRow(1).values).toEqual(expect.arrayContaining(["Mã bảo hành", "Ảnh QR", "Nội dung QR (URL)", "Tên file ảnh QR"]));
+    expect(ws.getImages()).toHaveLength(3);
+    expect(ws.getRow(2).getCell(2).text).toBe(codes[0].code);
+    expect(ws.getRow(2).getCell(4).text).toMatch(new RegExp(`/w/${codes[0].code}$`));
+    expect(ws.getRow(2).getCell(5).text).toBe(qrFileName(1, codes[0].code, "png"));
+
+    const list = await exportWarrantiesXlsx(ctx.admin, { page: 1, pageSize: 25, batchId });
+    const wb2 = new ExcelJS.Workbook();
+    await wb2.xlsx.load(list.buffer as unknown as ArrayBuffer);
+    expect(wb2.worksheets[0].getImages()).toHaveLength(3);
+  });
+
+  it("print package contains Excel, data-merge CSV, PNG + SVG per code and instructions", async () => {
+    const codes = await codesOf(4);
+    const { buffer, filename } = await exportBatchPrintPackage(ctx.admin, codes[0].batchId, { serialFrom: 2, serialTo: 3 });
+    expect(filename).toMatch(/_goi-in_2-3\.zip$/);
+    const zip = await JSZip.loadAsync(buffer);
+    const names = Object.keys(zip.files).filter((n) => !zip.files[n].dir).sort();
+    expect(names).toEqual([
+      "HUONG-DAN-NHA-IN.txt",
+      `QR_PNG/${qrFileName(2, codes[1].code, "png")}`,
+      `QR_PNG/${qrFileName(3, codes[2].code, "png")}`,
+      `QR_SVG/${qrFileName(2, codes[1].code, "svg")}`,
+      `QR_SVG/${qrFileName(3, codes[2].code, "svg")}`,
+      "du-lieu-in.csv",
+      "du-lieu-in.xlsx",
+    ].sort());
+    const csv = (await zip.file("du-lieu-in.csv")!.async("string")).replace(/^\uFEFF/, "").split("\r\n");
+    expect(csv[0]).toBe("serial,ma_bao_hanh,noi_dung_qr,thuong_hieu,san_pham,@anh_qr,@anh_qr_svg");
+    expect(csv[1].split(",").slice(0, 2)).toEqual(["2", codes[1].code]);
+    expect(csv[1]).toContain(`QR_PNG/${qrFileName(2, codes[1].code, "png")}`);
+    const png = await zip.file(`QR_PNG/${qrFileName(2, codes[1].code, "png")}`)!.async("nodebuffer");
+    expect(sniffImageType(png)).toBe("image/png");
+    await expectAppError(exportBatchPrintPackage(ctx.labAUser, codes[0].batchId, {}), "FORBIDDEN");
   });
 });

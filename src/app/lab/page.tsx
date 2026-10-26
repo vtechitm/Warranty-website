@@ -29,7 +29,7 @@ export default async function LabHome() {
           </div>
           <div>
             <div className="text-xl font-bold leading-tight">NHẬP MÃ BẢO HÀNH</div>
-            <div className="mt-1 text-sm text-muted">Gõ mã in trên thẻ, VD: ORG26-K8M4P2X9</div>
+            <div className="mt-1 text-sm text-muted">Gõ mã in trên thẻ, VD: OR48291037</div>
           </div>
         </Link>
       </div>

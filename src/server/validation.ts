@@ -32,7 +32,7 @@ export const changePasswordSchema = z.object({ currentPassword: z.string().min(1
 export const brandSchema = z.object({
   name: trimmed(100),
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,40}$/, "Slug chỉ gồm chữ thường, số, gạch ngang"),
-  codePrefix: z.string().trim().toUpperCase().regex(/^[A-Z]{2,4}$/, "Tiền tố mã gồm 2–4 chữ cái"),
+  codePrefix: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Tiền tố mã gồm 2 chữ cái (VD: OR)"),
   tagline: optionalText(200),
   logoUrl: z.string().trim().url().max(500).optional().nullable().or(z.literal("").transform(() => null)),
   primaryColor: hexColor.default("#0B1F3A"),

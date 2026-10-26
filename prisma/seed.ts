@@ -43,15 +43,15 @@ async function main() {
 
   const origin = await prisma.brand.create({
     data: {
-      name: "Origin", slug: "origin", codePrefix: "ORG", tagline: "Răng sứ cao cấp — chứng nhận chính hãng điện tử",
+      name: "Origin", slug: "origin", codePrefix: "OR", tagline: "Răng sứ cao cấp — chứng nhận chính hãng điện tử",
       primaryColor: "#0B1F3A", secondaryColor: "#C9A96E", supportPhone: "1900 0000", supportEmail: "baohanh@origin.example", websiteUrl: "https://origin.example",
     },
   });
   const elite = await prisma.brand.create({
-    data: { name: "Elite Zirconia", slug: "elite-zirconia", codePrefix: "ELZ", tagline: "Zirconia thẩm mỹ thế hệ mới", primaryColor: "#14213D", secondaryColor: "#E5C07B", supportPhone: "1900 0001" },
+    data: { name: "Elite Zirconia", slug: "elite-zirconia", codePrefix: "EZ", tagline: "Zirconia thẩm mỹ thế hệ mới", primaryColor: "#14213D", secondaryColor: "#E5C07B", supportPhone: "1900 0001" },
   });
   const overneer = await prisma.brand.create({
-    data: { name: "Overneer", slug: "overneer", codePrefix: "OVN", tagline: "Mặt dán sứ siêu mỏng", primaryColor: "#2B2D42", secondaryColor: "#D4AF37", supportPhone: "1900 0002" },
+    data: { name: "Overneer", slug: "overneer", codePrefix: "OV", tagline: "Mặt dán sứ siêu mỏng", primaryColor: "#2B2D42", secondaryColor: "#D4AF37", supportPhone: "1900 0002" },
   });
 
   const conditions = "Bảo hành áp dụng khi phục hình được chế tác bởi labo ủy quyền và lắp tại phòng khám, bệnh nhân tái khám định kỳ theo hướng dẫn.\nBảo hành bao gồm nứt, vỡ sứ do lỗi vật liệu hoặc chế tác.";

@@ -28,7 +28,7 @@ export async function makeUser(role: Role, extra: { laboratoryId?: string; email
 
 export async function seedBasics(opts: { durationMonths?: number; startRule?: "INSTALLATION_DATE" | "ACTIVATION_DATE" | "COMPLETION_DATE" } = {}) {
   const admin = await makeUser("SUPER_ADMIN");
-  const brand = await prisma.brand.create({ data: { name: "Origin", slug: "origin", codePrefix: "ORG", primaryColor: "#0B1F3A", secondaryColor: "#C9A96E" } });
+  const brand = await prisma.brand.create({ data: { name: "Origin", slug: "origin", codePrefix: "OR", primaryColor: "#0B1F3A", secondaryColor: "#C9A96E" } });
   const product = await prisma.product.create({ data: { brandId: brand.id, sku: "OBP", name: "Origin Beyond Plus" } });
   const policy = await prisma.warrantyPolicy.create({
     data: { productId: product.id, version: 1, durationMonths: opts.durationMonths ?? 120, startRule: opts.startRule ?? "INSTALLATION_DATE", conditions: "Điều kiện v1" },

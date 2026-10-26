@@ -45,7 +45,10 @@ describe("warranty code generation", () => {
     const codes = await prisma.warrantyCode.findMany({ where: { batchId: batch.id }, orderBy: { serial: "asc" } });
     expect(codes).toHaveLength(1000);
     expect(new Set(codes.map((c) => c.code)).size).toBe(1000);
-    expect(codes.every((c) => CODE_PATTERN.test(c.code) && c.code.startsWith("ORG"))).toBe(true);
+    expect(codes.every((c) => /^OR\d{8}$/.test(c.code) && CODE_PATTERN.test(c.code))).toBe(true);
+    // Digits are random, not sequential: consecutive serials must not be consecutive numbers.
+    const nums = codes.slice(0, 50).map((c) => Number(c.code.slice(2)));
+    expect(nums.filter((n, i) => i > 0 && Math.abs(n - nums[i - 1]) === 1).length).toBeLessThan(3);
     // Dense, ordered serials for printing
     expect(codes.map((c) => c.serial)).toEqual(Array.from({ length: 1000 }, (_, i) => i + 1));
 

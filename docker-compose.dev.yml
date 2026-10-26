@@ -1,4 +1,6 @@
 # Local development database only. Usage: docker compose -f docker-compose.dev.yml up -d
+# Fixed project name: otherwise it is derived from the folder name, and a different name means a new, empty volume.
+name: vtech-warranty-dev
 services:
   postgres:
     image: postgres:16-alpine

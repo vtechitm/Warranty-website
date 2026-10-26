@@ -45,7 +45,8 @@ export const API_PATHS: Record<string, Record<string, Op>> = {
 
   "/batches": { get: P("Danh sách lô mã", "Batches"), post: P("Tạo lô & sinh mã bảo hành", "Batches", { roles: "SUPER_ADMIN", body: "BatchCreate" }) },
   "/batches/{id}": { get: P("Chi tiết lô + thống kê", "Batches") },
-  "/batches/{id}/export": { get: P("Xuất Excel danh sách mã", "Batches", { binary: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
+  "/batches/{id}/export": { get: P("Xuất Excel danh sách mã (kèm ảnh QR khi ≤ 5.000 mã)", "Batches", { binary: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
+  "/batches/{id}/print-package": { get: P("Gói dữ liệu cho nhà in: Excel kèm ảnh QR, CSV trộn in, ảnh QR PNG/SVG", "Batches", { query: { serialFrom: "int", serialTo: "int" }, binary: "application/zip" }) },
   "/batches/{id}/qr-zip": { get: P("Tải ZIP ảnh QR (png/svg)", "Batches", { query: { format: "png|svg", serialFrom: "int", serialTo: "int" }, binary: "application/zip" }) },
   "/batches/{id}/labels": { get: P("PDF nhãn in QR", "Batches", { query: { template: "a4-3x8|a4-2x5-card|roll-50x30|roll-60x40", serialFrom: "int", serialTo: "int" }, binary: "application/pdf" }) },
 
@@ -115,7 +116,7 @@ const schemas = {
   AcceptInvitation: { type: "object", required: ["token", "password"], properties: { token: { type: "string" }, password: { type: "string", minLength: 10 } } },
   Brand: {
     type: "object", required: ["name", "slug", "codePrefix"],
-    properties: { name: { type: "string" }, slug: { type: "string" }, codePrefix: { type: "string", pattern: "^[A-Z]{2,4}$" }, primaryColor: { type: "string" }, secondaryColor: { type: "string" }, logoUrl: { type: "string" } },
+    properties: { name: { type: "string" }, slug: { type: "string" }, codePrefix: { type: "string", pattern: "^[A-Z]{2}$" }, primaryColor: { type: "string" }, secondaryColor: { type: "string" }, logoUrl: { type: "string" } },
   },
   Policy: {
     type: "object", required: ["durationMonths"],

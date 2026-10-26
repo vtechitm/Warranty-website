@@ -43,7 +43,7 @@ test("admin generates & assigns → lab activates → patient verifies", async (
 
   await admin.goto(`/admin/warranties?batchId=${batchId}`);
   const code = (await admin.locator("a.mono").first().innerText()).trim();
-  expect(code).toMatch(/^ORG\d{2}-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{8}$/);
+  expect(code).toMatch(/^OR\d{8}$/);
   await adminCtx.close();
 
   // ── Lab: manual code entry + activation ──
@@ -51,7 +51,7 @@ test("admin generates & assigns → lab activates → patient verifies", async (
   const labPage = await labCtx.newPage();
   await login(labPage, LAB, /\/lab$/);
   await labPage.goto("/lab/activate?mode=manual");
-  await labPage.getByPlaceholder("ORG26-K8M4P2X9").fill(code.toLowerCase());
+  await labPage.getByPlaceholder("OR48291037").fill(code.toLowerCase());
   await labPage.getByRole("button", { name: "KIỂM TRA MÃ" }).click();
   await expect(labPage).toHaveURL(new RegExp(`/lab/activate/${code}$`));
 

@@ -13,8 +13,8 @@ export function LookupForm({ target = "_self", compact = false, accent = "#C9A96
       onSubmit={(e) => {
         e.preventDefault();
         const c = code.trim().toUpperCase().replace(/\s+/g, "");
-        if (!/^[A-Z]{2,4}\d{2}-[A-Z0-9]{8}$/.test(c)) {
-          setError("Mã bảo hành có dạng ORG26-K8M4P2X9");
+        if (!/^(?:[A-Z]{2,4}\d{8}|[A-Z]{2,4}\d{2}-[A-Z0-9]{8})$/.test(c)) {
+          setError("Mã bảo hành có dạng OR48291037 (2 chữ cái + 8 chữ số)");
           return;
         }
         setError(null);
@@ -26,7 +26,7 @@ export function LookupForm({ target = "_self", compact = false, accent = "#C9A96
         <input
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          placeholder="Nhập mã bảo hành, VD: ORG26-K8M4P2X9"
+          placeholder="Nhập mã bảo hành, VD: OR48291037"
           className="mono min-w-0 flex-1 rounded-xl px-3 text-base uppercase text-ink outline-none placeholder:normal-case placeholder:tracking-normal"
           aria-label="Mã bảo hành"
           autoCapitalize="characters"

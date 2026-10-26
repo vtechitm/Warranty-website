@@ -49,12 +49,14 @@ The seed prints sample QR URLs for every state (active, pending installation, ex
 ### Main flow to try
 
 1. `/admin/batches` → **Sinh lô mã mới** (e.g. 10,000 codes; > 2,000 run in background).
-2. Batch page → **Cấp mã cho labo** (next N / serial range / list), **In nhãn QR (PDF)**, ZIP PNG/SVG, Excel.
+2. Batch page → **Cấp mã cho labo** (next N / serial range / list), **In nhãn QR (PDF)**, ZIP PNG/SVG, Excel with QR pictures, and **Tải gói dữ liệu in** — a ZIP for the card printer: Excel with one QR picture per code, `du-lieu-in.csv` for data merge (InDesign / CorelDRAW / BarTender; `@anh_qr` = image path), QR PNG + SVG files and printing instructions (`HUONG-DAN-NHA-IN.txt`).
 3. Log in as a lab → **QUÉT QR – KÍCH HOẠT BẢO HÀNH** (camera needs HTTPS or localhost) or **NHẬP MÃ BẢO HÀNH**.
 4. Fill patient, clinic (searchable), FDI tooth chart, dates → **KÍCH HOẠT**. The success screen shows the QR, PDF certificate and the patient access code.
 5. Open `/w/{code}` on a phone → certificate; **Xác thực để xem hồ sơ** with the access code, the phone number, or a **Mã OTP** sent to that phone (dev: the code is printed in the server log) → private details, PDF, claim form with photos.
 
 ### Phase 2 features
+
+* **Code format** — 2-letter brand prefix + 8 random digits, e.g. `OR48291037` (easy to read out and type; spaces/hyphens are ignored when typed). Digits are random, not sequential, so one card cannot be used to guess others; the print order is the separate `serial`. Uniqueness is enforced by the database. Old demo codes (`ORG26-K8M4P2X9`) still work.
 
 * **Excel / CSV import of assignments** — `/admin/batches` → **Nhập cấp mã (Excel/CSV)**. Upload a sheet with columns *Mã bảo hành* + *Mã labo* (or `code`,`lab`; no header = column A/B). Every row is validated (format, existence, duplicates, activated/revoked, lab exists/active/authorized for the brand, re-assignment warning) in a preview that writes nothing; **Xác nhận** re-validates and assigns each lab's group through the same `assignCodes()` as manual assignment (history + audit). Max 10,000 rows / 5 MB.
 * **Claim photos** — patients (and labs via API) attach up to `CLAIM_IMAGE_MAX_COUNT` JPEG/PNG/WebP photos (≤ `CLAIM_IMAGE_MAX_MB` each, type checked from file content). Stored privately (`STORAGE_DRIVER=local` → `STORAGE_LOCAL_DIR`, or `s3` → any S3-compatible bucket) and shown as thumbnails in `/admin/claims`.

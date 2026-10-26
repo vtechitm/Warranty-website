@@ -11,24 +11,28 @@ import { primaryDomain, requireCurrentPolicy } from "./catalog";
 import { warrantyUrl } from "./qr";
 import { lifecycleStatus } from "./validity";
 
-export const CODE_RANDOM_LENGTH = 8;
+/** Random digits after the 2-letter brand prefix: OR48291037. */
+export const CODE_DIGITS = 8;
 const INSERT_CHUNK = 1000;
 /** Batches up to this size are generated inline; larger ones run as a background job. */
 export const INLINE_GENERATION_LIMIT = 2000;
 
-/** ORG + 2-digit year: ORG26-K8M4P2X9 */
-export function codePrefix(brandPrefix: string, date = new Date()) {
-  return `${brandPrefix}${String(date.getUTCFullYear()).slice(-2)}`;
+/** Brand prefix (2 letters, e.g. OR). Codes are prefix + 8 random digits: OR48291037. */
+export function codePrefix(brandPrefix: string) {
+  return brandPrefix.trim().toUpperCase();
 }
 
 export function normalizeCode(input: string) {
   // Accept a full scanned URL as well as a typed code.
   const fromUrl = input.match(/\/w\/([A-Za-z0-9-]+)/);
   const raw = (fromUrl ? fromUrl[1] : input).trim().toUpperCase().replace(/\s+/g, "");
-  return raw;
+  // Digit codes may be typed in groups ("OR-4829-1037"); legacy codes keep their hyphen.
+  const compact = raw.replace(/[-.]/g, "");
+  return /^[A-Z]{2,4}\d{8}$/.test(compact) ? compact : raw;
 }
 
-export const CODE_PATTERN = /^[A-Z]{2,4}\d{2}-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{8}$/;
+/** Current format OR48291037; legacy demo format ORG26-K8M4P2X9 is still recognized. */
+export const CODE_PATTERN = /^(?:[A-Z]{2,4}\d{8}|[A-Z]{2,4}\d{2}-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{8})$/;
 
 async function nextBatchNumber(tx: Prisma.TransactionClient) {
   const year = new Date().getUTCFullYear();
@@ -72,7 +76,7 @@ export async function generateBatchCodes(batchId: string) {
   if (!batch) throw notFound();
   if (batch.status === "COMPLETED") return batch;
   await prisma.warrantyBatch.update({ where: { id: batchId }, data: { status: "GENERATING", error: null } });
-  const prefix = codePrefix(batch.brand.codePrefix, batch.createdAt);
+  const prefix = codePrefix(batch.brand.codePrefix);
   try {
     let generated = await prisma.warrantyCode.count({ where: { batchId } });
     let attempts = 0;
@@ -81,7 +85,7 @@ export async function generateBatchCodes(batchId: string) {
       const need = Math.min(INSERT_CHUNK, batch.quantity - generated);
       const lastSerial = (await prisma.warrantyCode.aggregate({ where: { batchId }, _max: { serial: true } }))._max.serial ?? 0;
       const local = new Set<string>();
-      while (local.size < need) local.add(`${prefix}-${randomString(CODE_RANDOM_LENGTH)}`);
+      while (local.size < need) local.add(`${prefix}${randomString(CODE_DIGITS, "0123456789")}`);
       const codes = [...local];
       const res = await prisma.warrantyCode.createMany({
         data: codes.map((code, i) => ({
@@ -248,7 +252,7 @@ export async function searchCodes(actor: Actor, params: z.infer<typeof warrantyS
       include: {
         brand: { select: { name: true } },
         product: { select: { name: true } },
-        batch: { select: { batchNumber: true } },
+        batch: { select: { batchNumber: true, qrBaseUrl: true } },
         assignedLaboratory: { select: { name: true, code: true } },
         case: {
           select: {

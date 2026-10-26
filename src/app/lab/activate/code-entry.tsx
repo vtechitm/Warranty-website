@@ -77,7 +77,7 @@ export function CodeEntry({ initialMode }: { initialMode: "scan" | "manual" }) {
             <input
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="ORG26-K8M4P2X9"
+              placeholder="OR48291037"
               className="field mono h-14 text-center text-xl font-bold uppercase"
               autoCapitalize="characters"
               autoComplete="off"
