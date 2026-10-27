@@ -23,7 +23,10 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       retries: 20
-    networks: [internal]
+    # Unique alias: the app also sits on the proxy's network, where another project may have a service named `db`.
+    networks:
+      internal:
+        aliases: [warranty-db]
     # Not published to the host.
 
   app:
@@ -33,7 +36,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@warranty-db:5432/${POSTGRES_DB}?schema=public
       APP_URL: ${APP_URL}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS}
       AUTH_SECRET: ${AUTH_SECRET}
@@ -71,7 +74,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      PGHOST: db
+      PGHOST: warranty-db
       PGUSER: ${POSTGRES_USER}
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: ${POSTGRES_DB}
