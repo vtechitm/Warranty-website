@@ -1,0 +1,32 @@
+# ── Vtech warranty / traceability platform (docker-compose.external-proxy.yml) ──
+# Paste into the EXISTING Caddyfile of the proxy that owns ports 80/443, then reload it:
+#   docker exec <caddy container> caddy validate --config /etc/caddy/Caddyfile
+#   docker exec <caddy container> caddy reload --config /etc/caddy/Caddyfile
+# Replace truyxuat.example.com with the platform domain (APP_URL).
+
+# 1) Inside the Caddyfile's global options block (the `{ … }` at the very top; create it if missing):
+#      on_demand_tls {
+#          ask http://warranty-app:3000/api/tls-check
+#      }
+#    → certificates for brand domains (baohanh.<brand>.vn …) are issued automatically, but only for
+#      hostnames added under Thương hiệu → Tên miền in the platform.
+
+# 2) Site blocks:
+truyxuat.example.com {
+	encode zstd gzip
+	reverse_proxy warranty-app:3000 {
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+# Brand domains (any other hostname pointed at this server). Explicit site blocks such as other
+# projects' domains always take precedence over this catch-all.
+https:// {
+	tls {
+		on_demand
+	}
+	encode zstd gzip
+	reverse_proxy warranty-app:3000 {
+		header_up X-Real-IP {remote_host}
+	}
+}

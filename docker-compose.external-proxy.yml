@@ -1,0 +1,93 @@
+# Production stack for a server that ALREADY runs a reverse proxy (e.g. another project's Caddy on ports 80/443):
+# PostgreSQL + app + nightly backups, no Caddy of its own. The app joins the proxy's Docker network as
+# `warranty-app`, and the existing Caddyfile gets the block from docker/Caddyfile.shared-snippet.
+#
+#   cp .env.production.example .env.production      # fill in secrets & domains
+#   # PROXY_NETWORK in .env.production = the existing proxy's network (docker network ls)
+#   docker compose -f docker-compose.external-proxy.yml --env-file .env.production up -d --build
+#
+# Use docker-compose.yml instead on a dedicated server (it brings its own Caddy).
+name: vtech-warranty
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+    networks: [internal]
+    # Not published to the host.
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      APP_URL: ${APP_URL}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS}
+      AUTH_SECRET: ${AUTH_SECRET}
+      HASH_PEPPER: ${HASH_PEPPER}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
+      WEB_SESSION_DAYS: ${WEB_SESSION_DAYS:-7}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      CLAIM_IMAGE_MAX_MB: ${CLAIM_IMAGE_MAX_MB:-8}
+      CLAIM_IMAGE_MAX_COUNT: ${CLAIM_IMAGE_MAX_COUNT:-6}
+      OTP_PROVIDER: ${OTP_PROVIDER:-disabled}
+      ZALO_ZNS_ACCESS_TOKEN: ${ZALO_ZNS_ACCESS_TOKEN:-}
+      ZALO_ZNS_TEMPLATE_ID: ${ZALO_ZNS_TEMPLATE_ID:-}
+      SMS_API_URL: ${SMS_API_URL:-}
+      SMS_API_KEY: ${SMS_API_KEY:-}
+      SMS_BRANDNAME: ${SMS_BRANDNAME:-}
+    volumes:
+      - uploads:/app/storage/uploads
+    networks:
+      internal: {}
+      proxy:
+        aliases: [warranty-app]
+    expose:
+      - "3000"
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+      - ./docker/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c", "while true; do /bin/sh /backup.sh; sleep 86400; done"]
+    networks: [internal]
+
+networks:
+  internal: {}
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK}
+
+volumes:
+  pgdata:
+  uploads:

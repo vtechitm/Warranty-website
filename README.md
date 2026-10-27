@@ -103,6 +103,12 @@ cp .env.production.example .env.production
 docker compose --env-file .env.production up -d --build
 ```
 
+**Server that already runs a reverse proxy** (e.g. another project's Caddy on 80/443): use `docker-compose.external-proxy.yml` instead — it starts only `db`, `app` (joined to the proxy's network as `warranty-app`, set `PROXY_NETWORK`) and `backup`. Paste `docker/Caddyfile.shared-snippet` into the existing Caddyfile (platform domain + optional on-demand TLS for brand domains), validate, reload.
+
+```bash
+docker compose -f docker-compose.external-proxy.yml --env-file .env.production up -d --build
+```
+
 * `app` runs `prisma migrate deploy` on start, then the Next.js standalone server (non-root, healthcheck `/api/health`).
 * `caddy` terminates HTTPS with automatic Let's Encrypt certificates for `PRIMARY_DOMAIN`, and on-demand certificates for configured brand domains only.
 * `db` is not exposed publicly. `backup` writes a nightly `pg_dump` to `./backups` (keep `BACKUP_KEEP_DAYS`) — sync that folder off-site.
