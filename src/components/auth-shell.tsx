@@ -8,10 +8,10 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
         <div className="relative flex h-full flex-col justify-between p-12 text-white">
           <Link href="/" className="text-lg font-bold tracking-[0.25em] text-gold-500">VTECH DENTAL</Link>
           <div>
-            <h2 className="text-4xl font-bold leading-tight">Hệ thống bảo hành<br />răng sứ điện tử</h2>
+            <h2 className="text-4xl font-bold leading-tight">Truy xuất nguồn gốc<br />xuất xứ phôi răng sứ</h2>
             <p className="mt-4 max-w-md text-white/60">Sinh mã QR trước, kích hoạt tại labo, bệnh nhân tra cứu chứng nhận chính hãng ngay trên điện thoại.</p>
           </div>
-          <p className="text-xs text-white/40">Digital Dental Passport · Origin · Elite Zirconia · Overneer</p>
+          <p className="text-xs text-white/40">Vtech Dental Supply · Origin · Elite Zirconia · Overneer</p>
         </div>
       </div>
       <div className="flex items-center justify-center p-6">

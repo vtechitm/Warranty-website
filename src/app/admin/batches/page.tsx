@@ -47,7 +47,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                 endpoint="/batches"
                 submitLabel="Sinh mã"
                 fields={[
-                  { name: "productId", label: "Sản phẩm", type: "select", required: true, options: activeProducts.map((p) => ({ value: p.id, label: `${p.brand.name} — ${p.name} (${p.policies[0]?.durationMonths ?? "?"} tháng)` })), hint: "Chỉ hiển thị sản phẩm đã có chính sách bảo hành" },
+                  { name: "productId", label: "Sản phẩm", type: "select", required: true, options: activeProducts.map((p) => ({ value: p.id, label: `${p.brand.name} — ${p.name}` })), hint: "Chỉ hiển thị sản phẩm đã có thông tin phôi" },
                   { name: "quantity", label: "Số lượng mã", type: "number", required: true, defaultValue: 1000, min: 1, max: 50000 },
                   { name: "notes", label: "Ghi chú", type: "textarea", placeholder: "VD: In thẻ đợt tháng 10" },
                 ]}

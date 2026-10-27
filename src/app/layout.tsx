@@ -13,8 +13,8 @@ const vietnam = localFont({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Vtech Dental Warranty", template: "%s · Vtech Dental Warranty" },
-  description: "Hệ thống bảo hành răng sứ điện tử — Digital Dental Passport",
+  title: { default: "Vtech – Truy xuất nguồn gốc", template: "%s · Vtech – Truy xuất nguồn gốc" },
+  description: "Nền tảng truy xuất nguồn gốc xuất xứ phôi răng sứ chính hãng — Vtech Dental Supply",
   robots: { index: false, follow: false },
 };
 

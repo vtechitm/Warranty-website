@@ -49,6 +49,7 @@ export function activationInput(overrides: Partial<ActivationInput["restoration"
       teeth: [11, 12, 21, 22].map((toothNumber) => ({ toothNumber, restorationType: null, shade: "A2", notes: null })),
       completionDate: new Date("2026-10-01T00:00:00Z"),
       installationDate: new Date("2026-10-05T00:00:00Z"),
+      warrantyMonths: 120,
       materialLotNumber: "LOT-2026-09",
       notes: null,
       ...overrides,

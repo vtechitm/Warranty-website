@@ -59,7 +59,7 @@ export async function renderLabelsPdf(opts: {
       const cSize = fitSize(item.code, fonts.bold, big ? 11 : 8, tw);
       page.drawText(item.code, { x: tx, y: ty, size: cSize, font: fonts.bold, color: rgb(0, 0, 0) });
       ty -= mm(big ? 5 : 3.6);
-      page.drawText("Quét QR để xem bảo hành", { x: tx, y: ty, size: big ? 6.5 : 5, font: fonts.regular, color: muted });
+      page.drawText("Quét QR xác thực nguồn gốc", { x: tx, y: ty, size: big ? 6.5 : 5, font: fonts.regular, color: muted });
       page.drawText(`#${item.serial}`, { x: x + w - pad - fonts.regular.widthOfTextAtSize(`#${item.serial}`, 4.5), y: yTop - h + mm(1.2), size: 4.5, font: fonts.regular, color: rgb(0.6, 0.6, 0.6) });
     });
   }

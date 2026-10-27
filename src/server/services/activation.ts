@@ -14,7 +14,12 @@ export const CONSENT_VERSION = "2026-10";
 export type PolicySnapshot = {
   policyId: string;
   version: number;
+  /** Warranty duration applied to this case. Since the traceability model it is chosen by the laboratory. */
   durationMonths: number;
+  /** "LABORATORY" = duration set by the activating lab; absent on records activated under the old Vtech-policy model. */
+  provider?: "LABORATORY";
+  /** Vtech's suggested duration for the product at activation time (for reference). */
+  suggestedMonths?: number;
   startRule: WarrantyPolicy["startRule"];
   conditions: string | null;
   exclusions: string | null;
@@ -61,7 +66,7 @@ const reasons = {
   ALREADY_ACTIVATED: "Mã này đã được kích hoạt trước đó.",
   REVOKED: "Mã này đã bị thu hồi. Vui lòng liên hệ Vtech.",
   BRAND_NOT_AUTHORIZED: "Labo chưa được ủy quyền cho thương hiệu này.",
-  NO_POLICY: "Sản phẩm chưa có chính sách bảo hành. Vui lòng liên hệ Vtech.",
+  NO_POLICY: "Sản phẩm chưa có thông tin phôi. Vui lòng liên hệ Vtech.",
 } as const;
 
 /** Step 3 of the lab workflow: verify the code can be activated by this lab. */
@@ -73,7 +78,7 @@ export async function checkCodeForActivation(actor: Actor, rawCode: string) {
     where: { code },
     include: {
       brand: { select: { id: true, name: true, primaryColor: true, secondaryColor: true, logoUrl: true } },
-      product: { select: { id: true, name: true, sku: true, materialType: true } },
+      product: { select: { id: true, name: true, sku: true, materialType: true, origin: true } },
       batch: { select: { qrBaseUrl: true } },
     },
   });
@@ -91,7 +96,8 @@ export async function checkCodeForActivation(actor: Actor, rawCode: string) {
     url: warrantyUrl(wc.batch.qrBaseUrl, wc.code),
     brand: wc.brand,
     product: wc.product,
-    policy: { version: policy.version, durationMonths: policy.durationMonths, startRule: policy.startRule, conditions: policy.conditions, exclusions: policy.exclusions },
+    /** Vtech's product information; `suggestedMonths` pre-fills the lab's warranty duration. */
+    policy: { version: policy.version, suggestedMonths: policy.durationMonths, careInstructions: policy.careInstructions },
   };
 }
 
@@ -168,8 +174,15 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
         materialLotId = lot.id;
       }
 
-      const start = resolveStartDate(policy.startRule, { ...input.restoration, activatedAt: now });
-      const snapshot = snapshotPolicy(policy);
+      // The warranty is the laboratory's: it starts on the installation date and lasts the duration the lab entered.
+      const months = input.restoration.warrantyMonths;
+      const start = resolveStartDate("INSTALLATION_DATE", { ...input.restoration, activatedAt: now });
+      const snapshot: PolicySnapshot = {
+        ...snapshotPolicy(policy),
+        durationMonths: months, startRule: "INSTALLATION_DATE", provider: "LABORATORY", suggestedMonths: policy.durationMonths,
+        // Vtech's former warranty terms do not apply to a lab-provided warranty.
+        conditions: null, exclusions: null, claimInstructions: null, benefits: null,
+      };
       const rc = await tx.restorationCase.create({
         data: {
           warrantyCodeId: wc.id,
@@ -187,7 +200,7 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
           installationDate: input.restoration.installationDate ?? null,
           installationStatus: start ? "CONFIRMED" : "PENDING_CONFIRMATION",
           warrantyStartDate: start,
-          warrantyEndDate: start ? warrantyEndDate(start, policy.durationMonths) : null,
+          warrantyEndDate: start ? warrantyEndDate(start, months) : null,
           notes: input.restoration.notes,
           policyId: policy.id,
           policyVersion: policy.version,
@@ -219,7 +232,7 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
 
       await audit(actor, {
         action: "warranty.activate", entityType: "WarrantyCode", entityId: wc.id, laboratoryId: labId,
-        metadata: { code: wc.code, caseId: rc.id, units: rc.unitCount, policyVersion: policy.version, installationStatus: rc.installationStatus },
+        metadata: { code: wc.code, caseId: rc.id, units: rc.unitCount, policyVersion: policy.version, warrantyMonths: months, suggestedMonths: policy.durationMonths, installationStatus: rc.installationStatus },
       }, tx);
 
       return {
@@ -234,7 +247,7 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
         installationStatus: rc.installationStatus,
         warrantyStartDate: rc.warrantyStartDate,
         warrantyEndDate: rc.warrantyEndDate,
-        durationMonths: policy.durationMonths,
+        durationMonths: months,
         activatedAt: now,
       };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 20_000 });
@@ -370,13 +383,22 @@ export async function confirmInstallation(actor: Actor, code: string, installati
 export async function correctWarranty(
   actor: Actor,
   code: string,
-  patch: { patientName?: string; patientPhone?: string | null; clinicName?: string | null; dentistName?: string | null; notes?: string | null; installationDate?: Date | null; reason: string },
+  patch: { patientName?: string; patientPhone?: string | null; clinicName?: string | null; dentistName?: string | null; notes?: string | null; installationDate?: Date | null; warrantyMonths?: number; reason: string },
 ) {
   assertCan(actor, "warranty:correct");
   const { wc, rc } = await caseForChange(actor, code);
   const snapshot = rc.policySnapshot as unknown as PolicySnapshot;
   return prisma.$transaction(async (tx) => {
-    const before = { clinicName: rc.clinicName, dentistName: rc.dentistName, notes: rc.notes, installationDate: rc.installationDate };
+    const before = { clinicName: rc.clinicName, dentistName: rc.dentistName, notes: rc.notes, installationDate: rc.installationDate, warrantyMonths: snapshot.durationMonths, warrantyEndDate: rc.warrantyEndDate };
+    // Duration correction: stored in the case's snapshot (which drives every later date calculation).
+    const months = patch.warrantyMonths ?? snapshot.durationMonths;
+    if (patch.warrantyMonths !== undefined && patch.warrantyMonths !== snapshot.durationMonths) {
+      const next: PolicySnapshot = { ...snapshot, durationMonths: patch.warrantyMonths, provider: "LABORATORY" };
+      await tx.restorationCase.update({
+        where: { id: rc.id },
+        data: { policySnapshot: next as unknown as Prisma.InputJsonValue, warrantyEndDate: rc.warrantyStartDate ? warrantyEndDate(rc.warrantyStartDate, patch.warrantyMonths) : null },
+      });
+    }
     const caseData: Prisma.RestorationCaseUpdateInput = {};
     if (patch.clinicName !== undefined) caseData.clinicName = patch.clinicName;
     if (patch.dentistName !== undefined) caseData.dentistName = patch.dentistName;
@@ -386,7 +408,7 @@ export async function correctWarranty(
       if (snapshot.startRule === "INSTALLATION_DATE") {
         caseData.installationStatus = "CONFIRMED";
         caseData.warrantyStartDate = patch.installationDate;
-        caseData.warrantyEndDate = warrantyEndDate(patch.installationDate, snapshot.durationMonths);
+        caseData.warrantyEndDate = warrantyEndDate(patch.installationDate, months);
       }
     }
     await tx.restorationCase.update({ where: { id: rc.id }, data: caseData });

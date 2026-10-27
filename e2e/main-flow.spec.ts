@@ -62,6 +62,10 @@ test("admin generates & assigns → lab activates → patient verifies", async (
   await labPage.getByRole("button", { name: "Răng 21", exact: true }).click();
   const completion = await labPage.getByLabel("Ngày hoàn thành phục hình").inputValue();
   await labPage.getByLabel("Ngày lắp cho bệnh nhân").fill(completion);
+  // Warranty is the lab's: pre-filled with Vtech's suggestion (10 years for this product); the lab picks 5 years.
+  await expect(labPage.getByLabel("Thời hạn bảo hành (tháng) *")).toHaveValue("120");
+  await labPage.getByRole("button", { name: "5 năm", exact: true }).click();
+  await expect(labPage.getByLabel("Thời hạn bảo hành (tháng) *")).toHaveValue("60");
   await labPage.getByRole("checkbox", { name: /Nghị định 13\/2023/ }).check();
   await labPage.getByRole("button", { name: "KÍCH HOẠT" }).click();
 
@@ -75,8 +79,12 @@ test("admin generates & assigns → lab activates → patient verifies", async (
   const patientCtx = await browser.newContext();
   const patient = await patientCtx.newPage();
   await patient.goto(`/w/${code}`);
-  await expect(patient.getByText("CHỨNG NHẬN PHỤC HÌNH CHÍNH HÃNG")).toBeVisible();
-  await expect(patient.getByText("Đã xác thực trên hệ thống Vtech")).toBeVisible();
+  await expect(patient.getByText("CHỨNG NHẬN NGUỒN GỐC XUẤT XỨ", { exact: true })).toBeVisible();
+  await expect(patient.getByText("Nguồn gốc đã xác thực bởi Vtech")).toBeVisible();
+  await expect(patient.getByText(/Xuất xứ: Phôi nhập khẩu chính hãng/)).toBeVisible();
+  const labWarranty = patient.getByText("Bảo hành do labo cung cấp", { exact: true }).locator("..");
+  await expect(labWarranty).toContainText("5 năm");
+  await expect(labWarranty).toContainText("Labo Răng Sứ Sài Gòn");
   await expect(patient.getByText("2 răng")).toBeVisible();
   await expect(patient.getByText("Trần Thị E2E")).toHaveCount(0);
 
@@ -86,6 +94,7 @@ test("admin generates & assigns → lab activates → patient verifies", async (
   await expect(patient.getByText("Trần Thị E2E")).toBeVisible();
   await expect(patient.getByText("Nha khoa Kiểm Thử")).toBeVisible();
   await expect(patient.getByText("11, 21")).toBeVisible();
-  await expect(patient.getByRole("button", { name: "Gửi yêu cầu bảo hành" })).toBeVisible();
+  // Claims are not part of the traceability platform.
+  await expect(patient.getByRole("button", { name: "Gửi yêu cầu bảo hành" })).toHaveCount(0);
   await patientCtx.close();
 });

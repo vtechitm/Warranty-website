@@ -37,10 +37,11 @@ export type PublicPassport = {
   url: string;
   state: PublicState;
   brand: PublicBrand;
-  product: { name: string; materialType: string | null; description: string | null; imageUrl: string | null };
+  product: { name: string; materialType: string | null; origin: string | null; description: string | null; imageUrl: string | null };
   activatedAt: string | null;
   warrantyStartDate: string | null;
   warrantyEndDate: string | null;
+  /** Warranty duration provided by the activating laboratory (null until activated). */
   durationMonths: number | null;
   validity: ReturnType<typeof computeValidity> | null;
   unitCount: number | null;
@@ -77,26 +78,27 @@ export async function getPublicPassport(rawCode: string, ip?: string | null): Pr
   const state = computePublicState(wc, c);
   const activated = wc.activationStatus === "ACTIVATED" && !!c && !wc.revokedAt;
   const snap = c ? (c.policySnapshot as unknown as PolicySnapshot) : null;
+  // Before activation only Vtech's product information (care instructions) is shown — the warranty is the lab's to set.
   const currentPolicy = !snap
-    ? await prisma.warrantyPolicy.findFirst({ where: { productId: wc.productId, isCurrent: true }, select: { durationMonths: true, careInstructions: true, benefits: true } })
+    ? await prisma.warrantyPolicy.findFirst({ where: { productId: wc.productId, isCurrent: true }, select: { careInstructions: true } })
     : null;
   return {
     code: wc.code,
     url: warrantyUrl(wc.batch.qrBaseUrl, wc.code),
     state,
     brand: publicBrand(wc.brand),
-    product: { name: wc.product.name, materialType: wc.product.materialType, description: wc.product.description, imageUrl: wc.product.imageUrl },
+    product: { name: wc.product.name, materialType: wc.product.materialType, origin: wc.product.origin, description: wc.product.description, imageUrl: wc.product.imageUrl },
     activatedAt: activated ? iso(wc.activatedAt) : null,
     warrantyStartDate: activated ? iso(c!.warrantyStartDate) : null,
     warrantyEndDate: activated || state === "EXPIRED" ? iso(c?.warrantyEndDate) : null,
-    durationMonths: snap?.durationMonths ?? currentPolicy?.durationMonths ?? null,
+    durationMonths: snap?.durationMonths ?? null,
     validity: activated ? computeValidity(c) : null,
     unitCount: activated ? c!.unitCount : null,
     authorizedLaboratory: activated ? c!.laboratory.name : null,
     policy: snap
       ? { conditions: snap.conditions, exclusions: snap.exclusions, claimInstructions: snap.claimInstructions, careInstructions: snap.careInstructions, benefits: snap.benefits, version: snap.version }
       : currentPolicy
-        ? { conditions: null, exclusions: null, claimInstructions: null, careInstructions: currentPolicy.careInstructions, benefits: currentPolicy.benefits, version: 0 }
+        ? { conditions: null, exclusions: null, claimInstructions: null, careInstructions: currentPolicy.careInstructions, benefits: null, version: 0 }
         : null,
     revokedAt: iso(wc.revokedAt),
   };

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { extractText, getDocumentProxy } from "unpdf";
 import { prisma } from "@/server/db";
 import { createAndGenerateBatch, assignCodes, revokeCode, CODE_PATTERN } from "@/server/services/warranty-codes";
-import { activateWarranty, checkCodeForActivation, confirmInstallation, getWarrantyDetail } from "@/server/services/activation";
+import { activateWarranty, checkCodeForActivation, confirmInstallation, correctWarranty, getWarrantyDetail } from "@/server/services/activation";
 import { getPrivatePassport, getPublicPassport, verifyPatientAccess, readPatientAccessToken } from "@/server/services/passport";
 import { publishPolicyVersion } from "@/server/services/catalog";
 import { certificatePdf } from "@/server/services/certificates";
@@ -113,9 +113,9 @@ describe("assignment & activation", () => {
     await expectAppError(getWarrantyDetail(ctx.labBUser, code.code), "NOT_FOUND");
   });
 
-  it("8. expiration date follows the policy (120 months from installation)", async () => {
+  it("8. expiration date follows the lab's warranty (120 months from installation)", async () => {
     const { code } = await assignedCode();
-    const r = await activateWarranty(ctx.labAUser, code.code, activationInput());
+    const r = await activateWarranty(ctx.labAUser, code.code, activationInput({ warrantyMonths: 120 }));
     expect(r.warrantyStartDate?.toISOString().slice(0, 10)).toBe("2026-10-05");
     expect(r.warrantyEndDate?.toISOString().slice(0, 10)).toBe("2036-10-05");
     const pub = await getPublicPassport(code.code);
@@ -167,9 +167,8 @@ describe("assignment & activation", () => {
 
 describe("validity & revocation", () => {
   it("11. expired warranties display as EXPIRED", async () => {
-    await prisma.warrantyPolicy.update({ where: { id: ctx.policy.id }, data: { durationMonths: 1 } });
     const { code } = await assignedCode();
-    await activateWarranty(ctx.labAUser, code.code, activationInput({ completionDate: new Date("2024-01-01T00:00:00Z"), installationDate: new Date("2024-01-10T00:00:00Z") }));
+    await activateWarranty(ctx.labAUser, code.code, activationInput({ warrantyMonths: 1, completionDate: new Date("2024-01-01T00:00:00Z"), installationDate: new Date("2024-01-10T00:00:00Z") }));
     const pub = await getPublicPassport(code.code);
     expect(pub!.state).toBe("EXPIRED");
     expect(pub!.validity).toBe("EXPIRED");
@@ -247,7 +246,9 @@ describe("certificates & policies", () => {
     const { text } = await extractText(doc, { mergePages: true });
     expect(text).toContain(code.code);
     expect(text).toContain("Origin Beyond Plus");
-    expect(text).toContain("CHỨNG NHẬN BẢO HÀNH PHỤC HÌNH CHÍNH HÃNG");
+    expect(text).toContain("CHỨNG NHẬN NGUỒN GỐC XUẤT XỨ");
+    expect(text).toContain("BẢO HÀNH DO LABO CUNG CẤP");
+    expect(text).toContain("10 năm");
     expect(text).toContain("Nguyễn Văn A");
     expect(text).toContain("11, 12, 21, 22");
     expect(text).toContain("04/10/2036"); // last covered day
@@ -260,22 +261,40 @@ describe("certificates & policies", () => {
     expect(publicText).not.toContain(r.accessCode);
   });
 
-  it("15. existing warranties keep their original policy version", async () => {
+  it("15. the lab sets the warranty; Vtech's figure is only a suggestion and its old terms never apply", async () => {
     const { code, batch } = await assignedCode();
-    await activateWarranty(ctx.labAUser, code.code, activationInput());
-    const v2 = await publishPolicyVersion(ctx.admin, ctx.product.id, { durationMonths: 60, startRule: "INSTALLATION_DATE", conditions: "Điều kiện v2", exclusions: null, claimInstructions: null, careInstructions: null, benefits: null });
+    const checked = await checkCodeForActivation(ctx.labAUser, code.code);
+    expect(checked.policy.suggestedMonths).toBe(120);
+    const r = await activateWarranty(ctx.labAUser, code.code, activationInput({ warrantyMonths: 36 }));
+    expect(r.durationMonths).toBe(36);
+    expect(r.warrantyEndDate?.toISOString().slice(0, 10)).toBe("2029-10-05");
+    const pub = await getPublicPassport(code.code);
+    expect(pub!.durationMonths).toBe(36);
+    expect(pub!.policy!.conditions).toBeNull(); // Vtech's former warranty terms are not attached
+    const rc = await prisma.restorationCase.findFirstOrThrow({ where: { warrantyCode: { code: code.code } } });
+    expect(rc.policySnapshot).toMatchObject({ durationMonths: 36, provider: "LABORATORY", suggestedMonths: 120 });
+
+    // Updating the product information later does not touch activated records.
+    const v2 = await publishPolicyVersion(ctx.admin, ctx.product.id, { durationMonths: 60, startRule: "INSTALLATION_DATE", conditions: null, exclusions: null, claimInstructions: null, careInstructions: "Chăm sóc v2", benefits: null });
     expect(v2.version).toBe(2);
-
-    const old = await getPublicPassport(code.code);
-    expect(old!.durationMonths).toBe(120);
-    expect(old!.policy!.version).toBe(1);
-    expect(old!.policy!.conditions).toBe("Điều kiện v1");
-    expect(old!.warrantyEndDate?.slice(0, 10)).toBe("2036-10-05");
-
+    expect((await getPublicPassport(code.code))!.durationMonths).toBe(36);
     const next = await prisma.warrantyCode.findFirstOrThrow({ where: { batchId: batch.id, activationStatus: "NOT_ACTIVATED" }, orderBy: { serial: "asc" } });
-    const r2 = await activateWarranty(ctx.labAUser, next.code, activationInput());
-    expect(r2.durationMonths).toBe(60);
-    expect(r2.warrantyEndDate?.toISOString().slice(0, 10)).toBe("2031-10-05");
+    expect((await checkCodeForActivation(ctx.labAUser, next.code)).policy.suggestedMonths).toBe(60);
+
+    // Unactivated codes show no warranty duration (it is not set until a lab activates the code).
+    expect((await getPublicPassport(next.code))!.durationMonths).toBeNull();
+
+    // The lab can correct the duration; the end date follows and the change is audited.
+    const labAdmin = await makeUser("LAB_ADMIN", { laboratoryId: ctx.labA.id });
+    await correctWarranty(labAdmin, code.code, { warrantyMonths: 60, reason: "Nhập nhầm thời hạn" });
+    const corrected = await getPublicPassport(code.code);
+    expect(corrected!.durationMonths).toBe(60);
+    expect(corrected!.warrantyEndDate?.slice(0, 10)).toBe("2031-10-05");
+    const log = await prisma.auditLog.findFirstOrThrow({ where: { action: "warranty.correct" } });
+    expect(log.metadata).toMatchObject({ before: { warrantyMonths: 36 }, changedFields: ["warrantyMonths"] });
+
+    // Duration is mandatory and bounded.
+    expect(activationSchema.safeParse({ ...activationInput(), restoration: { ...activationInput().restoration, warrantyMonths: 0 } }).success).toBe(false);
   });
 });
 

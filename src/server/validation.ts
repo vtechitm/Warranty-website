@@ -62,6 +62,7 @@ export const productSchema = z.object({
   name: trimmed(150),
   description: optionalText(2000),
   materialType: optionalText(100),
+  origin: optionalText(300),
   imageUrl: z.string().trim().url().optional().nullable().or(z.literal("").transform(() => null)),
   isActive: z.boolean().default(true),
 });
@@ -179,6 +180,12 @@ export const activationSchema = z
         .max(32),
       completionDate: dateOnly.optional().nullable(),
       installationDate: dateOnly.optional().nullable(),
+      /** Warranty the laboratory provides for this case (months). Pre-filled with Vtech's suggestion for the product. */
+      warrantyMonths: z
+        .number({ invalid_type_error: "Nhập thời hạn bảo hành (tháng)", required_error: "Nhập thời hạn bảo hành (tháng)" })
+        .int("Thời hạn bảo hành phải là số tháng nguyên")
+        .min(1, "Thời hạn bảo hành tối thiểu 1 tháng")
+        .max(600, "Thời hạn bảo hành tối đa 50 năm"),
       materialLotNumber: optionalText(60),
       notes: optionalText(2000),
     }),

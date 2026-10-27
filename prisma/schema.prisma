@@ -241,6 +241,8 @@ model Product {
   name         String
   description  String?
   materialType String?
+  /// Origin / manufacturer shown on the public traceability page, e.g. "Sản xuất tại Đức — nhập khẩu bởi Vtech".
+  origin       String?
   imageUrl     String?
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
@@ -259,7 +261,8 @@ model Product {
   @@index([brandId])
 }
 
-/// Versioned warranty policies. Activations store a snapshot + the policy id/version used.
+/// Versioned product information set by Vtech: suggested warranty duration (labs choose the actual
+/// duration at activation) and care instructions. Activations store a snapshot + the version used.
 model WarrantyPolicy {
   id                String            @id @default(uuid()) @db.Uuid
   productId         String            @db.Uuid

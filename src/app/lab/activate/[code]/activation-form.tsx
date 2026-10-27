@@ -7,16 +7,20 @@ import { ToothChart, QUICK_SELECTIONS } from "@/components/tooth-chart";
 import { Button } from "@/components/ui/button";
 import { Alert, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { apiFetch } from "@/lib/api-client";
-import { fmtDate, fmtDuration, lastCoveredDay, START_RULE_LABEL } from "@/lib/format";
+import { fmtDate, fmtDuration, lastCoveredDay } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
 type Checked = {
   code: string;
   url: string;
   brand: { id: string; name: string; primaryColor: string; secondaryColor: string };
-  product: { id: string; name: string; sku: string; materialType: string | null };
-  policy: { version: number; durationMonths: number; startRule: string; conditions: string | null; exclusions: string | null };
+  product: { id: string; name: string; sku: string; materialType: string | null; origin: string | null };
+  /** Vtech's product information; suggestedMonths pre-fills the lab's warranty duration. */
+  policy: { version: number; suggestedMonths: number; careInstructions: string | null };
 };
+
+/** Quick picks for the lab's warranty duration (months). */
+const WARRANTY_PRESETS = [12, 24, 36, 60, 84, 120, 180];
 
 type Clinic = { id: string; name: string; address: string | null; phone: string | null };
 
@@ -35,6 +39,8 @@ type Draft = {
   completionDate: string;
   installationDate: string;
   installationUnknown: boolean;
+  /** Warranty the lab provides, in months (string while editing). */
+  warrantyMonths: string;
   lotNumber: string;
   notes: string;
   consent: boolean;
@@ -54,12 +60,12 @@ type Result = {
 const today = () => new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
 const RECENT_CLINICS_KEY = "vt-recent-clinics";
 
-function emptyDraft(defaultType: string): Draft {
+function blankDraft(defaultType: string, suggestedMonths: number): Draft {
   return {
     patientName: "", patientPhone: "", birthYear: "", externalRef: "",
     clinicId: null, clinicName: "", dentistName: "", clinicPhone: "",
     restorationType: defaultType, teeth: [], shade: "",
-    completionDate: today(), installationDate: "", installationUnknown: false,
+    completionDate: today(), installationDate: "", installationUnknown: false, warrantyMonths: String(suggestedMonths),
     lotNumber: "", notes: "", consent: false,
   };
 }
@@ -75,6 +81,7 @@ function readStorage<T>(key: string, fallback: T): T {
 
 export function ActivationForm({ checked, restorationTypes }: { checked: Checked; restorationTypes: string[] }) {
   const draftKey = `vt-draft-${checked.code}`;
+  const emptyDraft = (t: string) => blankDraft(t, checked.policy.suggestedMonths);
   const [d, setD] = useState<Draft>(() => emptyDraft(restorationTypes[0]));
   const [restored, setRestored] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +99,7 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
     }
     setRecentClinics(readStorage(RECENT_CLINICS_KEY, []));
     loaded.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftKey, restorationTypes]);
 
   useEffect(() => {
@@ -107,19 +115,21 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((prev) => ({ ...prev, [k]: v }));
   const toggleTooth = (n: number) => setD((p) => ({ ...p, teeth: p.teeth.includes(n) ? p.teeth.filter((t) => t !== n) : [...p.teeth, n].sort((a, b) => a - b) }));
 
-  const needsInstallDate = checked.policy.startRule === "INSTALLATION_DATE";
-  const pending = needsInstallDate && (d.installationUnknown || !d.installationDate);
-  const ready = d.patientName.trim() && (d.clinicId || d.clinicName.trim()) && d.teeth.length > 0 && d.consent;
+  // The lab's warranty starts on the installation date.
+  const pending = d.installationUnknown || !d.installationDate;
+  const months = Number(d.warrantyMonths);
+  const monthsValid = Number.isInteger(months) && months >= 1 && months <= 600;
+  const ready = d.patientName.trim() && (d.clinicId || d.clinicName.trim()) && d.teeth.length > 0 && monthsValid && d.consent;
 
   const previewEnd = useMemo(() => {
-    const start = checked.policy.startRule === "INSTALLATION_DATE" ? (d.installationUnknown ? "" : d.installationDate) : checked.policy.startRule === "COMPLETION_DATE" ? d.completionDate : today();
-    if (!start) return null;
+    const start = d.installationUnknown ? "" : d.installationDate;
+    if (!start || !monthsValid) return null;
     const s = new Date(`${start}T00:00:00Z`);
-    const e = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + checked.policy.durationMonths, 1));
+    const e = new Date(Date.UTC(s.getUTCFullYear(), s.getUTCMonth() + months, 1));
     const last = new Date(Date.UTC(e.getUTCFullYear(), e.getUTCMonth() + 1, 0)).getUTCDate();
     e.setUTCDate(Math.min(s.getUTCDate(), last));
     return lastCoveredDay(e);
-  }, [checked.policy, d.installationDate, d.installationUnknown, d.completionDate]);
+  }, [d.installationDate, d.installationUnknown, months, monthsValid]);
 
   async function submit() {
     setSubmitting(true);
@@ -134,6 +144,7 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
             teeth: d.teeth.map((toothNumber) => ({ toothNumber, shade: d.shade || null })),
             completionDate: d.completionDate || null,
             installationDate: d.installationUnknown ? null : d.installationDate || null,
+            warrantyMonths: months,
             materialLotNumber: d.lotNumber || null,
             notes: d.notes || null,
           },
@@ -167,8 +178,9 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
           <div className="mt-2 text-xl font-bold">{checked.product.name}</div>
           <div className="mono mt-1 text-lg" style={{ color: checked.brand.secondaryColor }}>{checked.code}</div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-white/70">
-            <span className="flex items-center gap-1.5"><ShieldCheck className="size-4" /> Bảo hành {fmtDuration(checked.policy.durationMonths)}</span>
-            <span>{START_RULE_LABEL[checked.policy.startRule]}</span>
+            {checked.product.materialType && <span>{checked.product.materialType}</span>}
+            {checked.product.origin && <span>Xuất xứ: {checked.product.origin}</span>}
+            <span className="flex items-center gap-1.5"><ShieldCheck className="size-4" /> Phôi chính hãng · đã xác thực nguồn gốc</span>
           </div>
         </div>
       </section>
@@ -251,7 +263,7 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
             <Input type="date" value={d.completionDate} max={today()} onChange={(e) => set("completionDate", e.target.value)} />
           </Field>
           <div>
-            <Field label={needsInstallDate ? "Ngày lắp cho bệnh nhân" : "Ngày lắp (nếu biết)"}>
+            <Field label="Ngày lắp cho bệnh nhân">
               <Input type="date" value={d.installationUnknown ? "" : d.installationDate} disabled={d.installationUnknown} onChange={(e) => set("installationDate", e.target.value)} />
             </Field>
             <label className="mt-2 flex items-center gap-2 text-sm text-muted">
@@ -271,14 +283,31 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
         </div>
       </Step>
 
-      <Step n={4} title="Xác nhận chính sách" icon={<ShieldCheck />}>
-        <div className="rounded-2xl bg-surface p-4 text-sm">
-          <div className="grid grid-cols-2 gap-3">
-            <div><div className="text-xs text-muted">Thời hạn</div><div className="font-semibold">{fmtDuration(checked.policy.durationMonths)}</div></div>
-            <div><div className="text-xs text-muted">Hiệu lực đến hết</div><div className="font-semibold">{pending ? "Chờ xác nhận ngày lắp" : previewEnd ? fmtDate(previewEnd) : "—"}</div></div>
+      <Step n={4} title="Bảo hành của labo" icon={<ShieldCheck />}>
+        <p className="text-sm text-muted">
+          Thời hạn bảo hành do labo cung cấp cho ca này. Vtech gợi ý <b>{fmtDuration(checked.policy.suggestedMonths)}</b> cho {checked.product.name}; labo có thể chọn thời hạn khác.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {[...new Set([...WARRANTY_PRESETS, checked.policy.suggestedMonths])].sort((a, b) => a - b).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => set("warrantyMonths", String(m))}
+              className={cn("rounded-full border px-3 py-1.5 text-sm font-medium", months === m ? "border-navy-900 bg-navy-900 text-white" : "border-line bg-white text-ink")}
+            >
+              {fmtDuration(m)}{m === checked.policy.suggestedMonths ? " · gợi ý" : ""}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <Field label="Thời hạn bảo hành (tháng) *" error={d.warrantyMonths && !monthsValid ? "Nhập số tháng từ 1 đến 600" : null}>
+            <Input value={d.warrantyMonths} onChange={(e) => set("warrantyMonths", e.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" placeholder={String(checked.policy.suggestedMonths)} />
+          </Field>
+          <div className="rounded-2xl bg-surface p-4 text-sm">
+            <div className="text-xs text-muted">Hiệu lực đến hết</div>
+            <div className="font-semibold">{pending ? "Chờ xác nhận ngày lắp" : previewEnd ? fmtDate(previewEnd) : "—"}</div>
+            <div className="mt-1 text-xs text-muted">Tính từ ngày lắp cho bệnh nhân</div>
           </div>
-          {checked.policy.conditions && <p className="mt-3 whitespace-pre-line text-muted">{checked.policy.conditions}</p>}
-          <div className="mt-2 text-xs text-muted">Chính sách phiên bản {checked.policy.version} sẽ được lưu kèm chứng nhận.</div>
         </div>
         {pending && <div className="mt-3"><Alert tone="amber">Bảo hành sẽ ở trạng thái <b>chờ xác nhận ngày lắp</b>. Bạn có thể cập nhật ngày lắp sau trong mục Lịch sử.</Alert></div>}
         <label className="mt-4 flex items-start gap-3 rounded-2xl border border-line p-4 text-sm">

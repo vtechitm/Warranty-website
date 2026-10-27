@@ -199,6 +199,6 @@ export async function publishPolicyVersion(actor: Actor, productId: string, inpu
 
 export async function requireCurrentPolicy(productId: string) {
   const policy = await getCurrentPolicy(productId);
-  if (!policy) throw new AppError("CONFLICT", "Sản phẩm chưa có chính sách bảo hành. Vui lòng liên hệ Vtech.", undefined, "NO_POLICY");
+  if (!policy) throw new AppError("CONFLICT", "Sản phẩm chưa có thông tin phôi. Vui lòng liên hệ Vtech.", undefined, "NO_POLICY");
   return policy;
 }

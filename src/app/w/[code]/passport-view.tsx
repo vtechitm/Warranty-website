@@ -1,9 +1,8 @@
-import { AlertOctagon, BadgeCheck, CalendarClock, Clock, Download, Globe, Hourglass, Mail, Phone, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertOctagon, BadgeCheck, Building2, CalendarClock, Clock, Download, Factory, Globe, Hourglass, Mail, Phone, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import type { PrivatePassport, PublicPassport } from "@/server/services/passport";
 import { fmtDate, fmtDateVN, fmtDuration, lastCoveredDay } from "@/lib/format";
 import { ToothChart } from "@/components/tooth-chart";
 import { VerifyPanel } from "./verify-panel";
-import { ClaimForm } from "./claim-form";
 
 const DEFAULT_CARE = [
   "Chải răng 2 lần/ngày bằng bàn chải lông mềm và kem đánh răng không chứa hạt mài.",
@@ -14,12 +13,12 @@ const DEFAULT_CARE = [
 ];
 
 const HEADLINE: Record<PublicPassport["state"], { title: string; sub: string; tone: "ok" | "warn" | "bad" | "muted" }> = {
-  ACTIVE: { title: "CHỨNG NHẬN PHỤC HÌNH CHÍNH HÃNG", sub: "Phục hình đã được kích hoạt bảo hành bởi labo được ủy quyền", tone: "ok" },
-  PENDING_INSTALLATION: { title: "CHỨNG NHẬN PHỤC HÌNH CHÍNH HÃNG", sub: "Bảo hành sẽ bắt đầu khi ngày lắp cho bệnh nhân được xác nhận", tone: "warn" },
-  NOT_ACTIVATED: { title: "CHỨNG NHẬN CHƯA ĐƯỢC KÍCH HOẠT", sub: "Mã hợp lệ nhưng chưa được labo kích hoạt cho ca phục hình nào", tone: "muted" },
-  EXPIRED: { title: "BẢO HÀNH ĐÃ HẾT HẠN", sub: "Phục hình chính hãng — thời hạn bảo hành đã kết thúc", tone: "muted" },
-  SUSPENDED: { title: "BẢO HÀNH ĐANG TẠM NGƯNG", sub: "Vui lòng liên hệ bộ phận hỗ trợ để biết thêm chi tiết", tone: "warn" },
-  REVOKED: { title: "CẢNH BÁO: CHỨNG NHẬN ĐÃ BỊ THU HỒI", sub: "Mã này không còn hiệu lực và KHÔNG phải là chứng nhận bảo hành hợp lệ", tone: "bad" },
+  ACTIVE: { title: "CHỨNG NHẬN NGUỒN GỐC XUẤT XỨ", sub: "Phôi chính hãng — phục hình được chế tác bởi labo được ủy quyền", tone: "ok" },
+  PENDING_INSTALLATION: { title: "CHỨNG NHẬN NGUỒN GỐC XUẤT XỨ", sub: "Phôi chính hãng — bảo hành của labo bắt đầu khi ngày lắp được xác nhận", tone: "warn" },
+  NOT_ACTIVATED: { title: "MÃ CHƯA ĐƯỢC KÍCH HOẠT", sub: "Mã hợp lệ do Vtech phát hành nhưng chưa được labo kích hoạt cho ca phục hình nào", tone: "muted" },
+  EXPIRED: { title: "CHỨNG NHẬN NGUỒN GỐC XUẤT XỨ", sub: "Phôi chính hãng — thời hạn bảo hành do labo cung cấp đã kết thúc", tone: "ok" },
+  SUSPENDED: { title: "BẢO HÀNH ĐANG TẠM NGƯNG", sub: "Vui lòng liên hệ labo hoặc phòng khám để biết thêm chi tiết", tone: "warn" },
+  REVOKED: { title: "CẢNH BÁO: MÃ ĐÃ BỊ THU HỒI", sub: "Mã này không còn hiệu lực và KHÔNG xác nhận được nguồn gốc sản phẩm", tone: "bad" },
 };
 
 function remaining(end: string | null) {
@@ -35,7 +34,7 @@ function remaining(end: string | null) {
   return fmtDuration(months);
 }
 
-type ViewOptions = { otpEnabled: boolean; maxImages: number; maxImageMb: number };
+type ViewOptions = { otpEnabled: boolean };
 
 export function PassportView({ passport: p, privateData, options }: { passport: PublicPassport; privateData: PrivatePassport | null; options?: ViewOptions }) {
   const primary = p.brand.primaryColor;
@@ -47,7 +46,6 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
   const progress = start && end ? Math.min(100, Math.max(0, ((Date.now() - start) / (end - start)) * 100)) : 0;
   const lastDay = lastCoveredDay(p.warrantyEndDate);
   const care = p.policy?.careInstructions?.split(/\r?\n/).filter(Boolean) ?? DEFAULT_CARE;
-  const benefits = p.policy?.benefits?.split(/\r?\n/).filter(Boolean);
 
   return (
     <main className="min-h-dvh pb-16 text-white" style={{ background: `linear-gradient(180deg, ${primary} 0%, #050b16 55%, #050b16 100%)` }}>
@@ -60,7 +58,7 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
           ) : (
             <div className="text-lg font-bold tracking-[0.3em]" style={{ color: gold }}>{p.brand.name.toUpperCase()}</div>
           )}
-          <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/50">Digital Dental Passport</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/50">Truy xuất nguồn gốc</span>
         </header>
 
         {/* Certificate card */}
@@ -74,6 +72,11 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
               <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">Sản phẩm</div>
               <div className="mt-1 text-2xl font-bold leading-tight">{p.product.name}</div>
               {p.product.materialType && <div className="mt-0.5 text-sm text-white/60">{p.product.materialType}</div>}
+              {p.product.origin && (
+                <div className="mt-2 flex items-start gap-1.5 text-xs text-white/70">
+                  <Factory className="mt-0.5 size-3.5 shrink-0" style={{ color: gold }} /> Xuất xứ: {p.product.origin}
+                </div>
+              )}
             </div>
 
             <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -99,20 +102,28 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
             )}
 
             <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
-              <Fact icon={<Hourglass />} label="Thời hạn bảo hành" value={fmtDuration(p.durationMonths)} />
               {activated ? (
                 <>
+                  <Fact icon={<Building2 />} label="Labo chế tác" value={p.authorizedLaboratory ?? "—"} />
                   <Fact icon={<CalendarClock />} label="Ngày kích hoạt" value={fmtDateVN(p.activatedAt)} />
-                  <Fact icon={<Clock />} label="Hiệu lực đến hết" value={lastDay ? fmtDate(lastDay) : "Chờ xác nhận"} />
                   <Fact icon={<Sparkles />} label="Số đơn vị" value={p.unitCount ? `${p.unitCount} răng` : "—"} />
+                  <Fact icon={<BadgeCheck />} label="Thương hiệu" value={p.brand.name} />
                 </>
               ) : (
-                <Fact icon={<BadgeCheck />} label="Trạng thái" value={p.state === "REVOKED" ? "Đã thu hồi" : "Chưa kích hoạt"} />
+                <>
+                  <Fact icon={<BadgeCheck />} label="Thương hiệu" value={p.brand.name} />
+                  <Fact icon={<Hourglass />} label="Trạng thái" value={p.state === "REVOKED" ? "Đã thu hồi" : "Chưa kích hoạt"} />
+                </>
               )}
             </dl>
-            {activated && p.authorizedLaboratory && (
-              <div className="mt-4 border-t border-white/10 pt-4 text-xs text-white/60">
-                Kích hoạt bởi labo ủy quyền: <span className="font-semibold text-white/90">{p.authorizedLaboratory}</span>
+            {activated && (
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/50">Bảo hành do labo cung cấp</div>
+                <div className="mt-1 grid grid-cols-2 gap-3 text-sm">
+                  <div><div className="text-white/50">Thời hạn</div><div className="font-semibold">{fmtDuration(p.durationMonths)}</div></div>
+                  <div><div className="text-white/50">Hiệu lực đến hết</div><div className="font-semibold">{lastDay ? fmtDate(lastDay) : "Chờ xác nhận ngày lắp"}</div></div>
+                </div>
+                {p.authorizedLaboratory && <div className="mt-2 text-xs text-white/50"><Clock className="mr-1 inline size-3" />Bảo hành thuộc trách nhiệm của {p.authorizedLaboratory}. Vtech xác nhận nguồn gốc phôi.</div>}
               </div>
             )}
           </div>
@@ -122,7 +133,7 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
           <div className="mt-5 rounded-2xl border border-red-400/40 bg-red-500/10 p-4 text-sm text-red-100">
             <div className="flex items-center gap-2 font-semibold"><ShieldAlert className="size-5" /> Không sử dụng chứng nhận này</div>
             <p className="mt-2 text-red-100/80">
-              Mã đã bị Vtech thu hồi (có thể do thẻ bị thất lạc, sao chép hoặc phát hành sai). Vui lòng liên hệ phòng khám hoặc hotline thương hiệu để được hỗ trợ.
+              Mã đã bị Vtech thu hồi (có thể do thẻ bị thất lạc, sao chép hoặc phát hành sai) nên không xác nhận được nguồn gốc. Vui lòng liên hệ phòng khám hoặc hotline thương hiệu để được hỗ trợ.
             </p>
           </div>
         )}
@@ -130,7 +141,7 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
         {p.state === "NOT_ACTIVATED" && (
           <Panel title="Thẻ bảo hành chưa được kích hoạt">
             <p className="text-sm text-white/70">
-              Nếu bạn đã được lắp phục hình, vui lòng liên hệ phòng khám để labo kích hoạt bảo hành. Sau khi kích hoạt, bạn có thể quét lại chính mã QR này — mã không thay đổi.
+              Nếu bạn đã được lắp phục hình, vui lòng liên hệ phòng khám để labo kích hoạt mã. Sau khi kích hoạt, bạn có thể quét lại chính mã QR này để xem nguồn gốc phôi và bảo hành của labo — mã không thay đổi.
             </p>
           </Panel>
         )}
@@ -166,20 +177,9 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
               className="flex h-14 items-center justify-center gap-2 rounded-2xl text-base font-bold text-[#07111f] shadow-lg"
               style={{ background: `linear-gradient(90deg, ${gold}, #f0dcb2)` }}
             >
-              <Download className="size-5" /> TẢI CHỨNG NHẬN BẢO HÀNH (PDF)
+              <Download className="size-5" /> TẢI CHỨNG NHẬN NGUỒN GỐC (PDF)
             </a>
-            {privateData && p.state === "ACTIVE" && <ClaimForm code={p.code} maxImages={options?.maxImages} maxImageMb={options?.maxImageMb} />}
           </div>
-        )}
-
-        {benefits && benefits.length > 0 && (
-          <Panel title="Quyền lợi bảo hành">
-            <ul className="space-y-2 text-sm text-white/80">
-              {benefits.map((b) => (
-                <li key={b} className="flex gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0" style={{ color: gold }} /> {b}</li>
-              ))}
-            </ul>
-          </Panel>
         )}
 
         {p.state !== "REVOKED" && (
@@ -195,28 +195,17 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
           </Panel>
         )}
 
-        {(p.policy?.conditions || p.policy?.exclusions || p.policy?.claimInstructions) && (
-          <Panel title="Điều khoản bảo hành">
-            <div className="space-y-2 text-sm">
-              <Terms title="Điều kiện bảo hành" body={p.policy.conditions} />
-              <Terms title="Trường hợp không bảo hành" body={p.policy.exclusions} />
-              <Terms title="Thủ tục yêu cầu bảo hành" body={p.policy.claimInstructions} />
-              {p.policy.version > 0 && <p className="pt-1 text-xs text-white/40">Áp dụng chính sách phiên bản {p.policy.version} tại thời điểm kích hoạt.</p>}
-            </div>
-          </Panel>
-        )}
-
-        <Panel title={p.state === "EXPIRED" ? "Hỗ trợ sau bảo hành" : "Liên hệ hỗ trợ"}>
+        <Panel title="Liên hệ thương hiệu">
           <div className="space-y-2 text-sm text-white/80">
             {p.brand.supportPhone && <a href={`tel:${p.brand.supportPhone}`} className="flex items-center gap-2"><Phone className="size-4" style={{ color: gold }} /> {p.brand.supportPhone}</a>}
             {p.brand.supportEmail && <a href={`mailto:${p.brand.supportEmail}`} className="flex items-center gap-2"><Mail className="size-4" style={{ color: gold }} /> {p.brand.supportEmail}</a>}
             {p.brand.websiteUrl && <a href={p.brand.websiteUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2"><Globe className="size-4" style={{ color: gold }} /> {p.brand.websiteUrl.replace(/^https?:\/\//, "")}</a>}
-            {p.state === "EXPIRED" && <p className="pt-1 text-white/60">Bảo hành đã kết thúc. Bạn vẫn có thể liên hệ phòng khám để được kiểm tra, sửa chữa hoặc tư vấn phục hình mới.</p>}
+            {activated && <p className="pt-1 text-white/60">Về bảo hành, sửa chữa phục hình: vui lòng liên hệ phòng khám đã lắp hoặc labo chế tác.</p>}
           </div>
         </Panel>
 
         <p className="mt-8 text-center text-[11px] leading-relaxed text-white/35">
-          Mã QR là định danh của chứng nhận điện tử. Tình trạng bảo hành luôn được xác thực trực tiếp tại trang này.
+          Mã QR là định danh chứng nhận nguồn gốc xuất xứ điện tử do Vtech phát hành. Thông tin luôn được xác thực trực tiếp tại trang này.
           <br />© Vtech Dental Supply · {p.brand.name}
         </p>
       </div>
@@ -237,7 +226,7 @@ function StateBanner({ tone, title, sub, gold }: { tone: "ok" | "warn" | "bad" |
         <div className="mt-0.5 text-xs text-white/60">{sub}</div>
         {tone === "ok" && (
           <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
-            <BadgeCheck className="size-3.5" /> Đã xác thực trên hệ thống Vtech
+            <BadgeCheck className="size-3.5" /> Nguồn gốc đã xác thực bởi Vtech
           </div>
         )}
       </div>
@@ -269,15 +258,5 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
       <h2 className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-white/60">{title}</h2>
       {children}
     </section>
-  );
-}
-
-function Terms({ title, body }: { title: string; body: string | null }) {
-  if (!body) return null;
-  return (
-    <details className="group rounded-2xl bg-white/[0.04] px-4 py-3">
-      <summary className="cursor-pointer list-none font-semibold text-white/90 marker:hidden">{title}</summary>
-      <p className="mt-2 whitespace-pre-line text-white/70">{body}</p>
-    </details>
   );
 }

@@ -17,7 +17,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         <input name="action" defaultValue={sp.action} placeholder="Hành động, VD: warranty.activate" className="field max-w-xs" />
         <select name="entityType" defaultValue={sp.entityType ?? ""} className="field max-w-xs">
           <option value="">Mọi đối tượng</option>
-          {["WarrantyCode", "WarrantyBatch", "RestorationCase", "Laboratory", "Brand", "BrandDomain", "Product", "WarrantyPolicy", "User", "WarrantyClaim"].map((t) => <option key={t}>{t}</option>)}
+          {["WarrantyCode", "WarrantyBatch", "RestorationCase", "Laboratory", "Brand", "BrandDomain", "Product", "WarrantyPolicy", "User"].map((t) => <option key={t}>{t}</option>)}
         </select>
         <button className="rounded-xl bg-navy-900 px-5 text-sm font-semibold text-white">Lọc</button>
       </form>

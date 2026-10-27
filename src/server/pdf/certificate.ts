@@ -9,6 +9,7 @@ export type CertificateData = {
   brand: { name: string; primaryColor: string; secondaryColor: string; supportPhone?: string | null; supportEmail?: string | null; websiteUrl?: string | null };
   productName: string;
   materialType?: string | null;
+  origin?: string | null;
   activatedAt: Date | string | null;
   warrantyStartDate: Date | string | null;
   warrantyEndDate: Date | string | null;
@@ -35,7 +36,7 @@ const A4 = { w: 595.28, h: 841.89 };
 
 export async function renderCertificatePdf(data: CertificateData): Promise<Uint8Array> {
   const { doc, fonts } = await createDoc({
-    title: `Chứng nhận bảo hành ${data.code}`,
+    title: `Chứng nhận nguồn gốc xuất xứ ${data.code}`,
     subject: `${data.brand.name} ${data.productName} — ${PUBLIC_STATE_LABEL[data.state] ?? data.state}`,
     keywords: [data.code, data.brand.name, data.productName],
   });
@@ -56,8 +57,8 @@ export async function renderCertificatePdf(data: CertificateData): Promise<Uint8
   const headerY = A4.h - mm(10) - headerH;
   page.drawRectangle({ x: mm(10), y: headerY, width: A4.w - mm(20), height: headerH, color: navy });
   page.drawText(data.brand.name.toUpperCase(), { x: M, y: headerY + headerH - mm(14), size: 22, font: fonts.bold, color: gold });
-  page.drawText("DIGITAL DENTAL PASSPORT", { x: M, y: headerY + headerH - mm(21), size: 8.5, font: fonts.semibold, color: rgb(1, 1, 1), opacity: 0.75 });
-  const title = "CHỨNG NHẬN BẢO HÀNH PHỤC HÌNH CHÍNH HÃNG";
+  page.drawText("TRUY XUẤT NGUỒN GỐC XUẤT XỨ", { x: M, y: headerY + headerH - mm(21), size: 8.5, font: fonts.semibold, color: rgb(1, 1, 1), opacity: 0.75 });
+  const title = "CHỨNG NHẬN NGUỒN GỐC XUẤT XỨ";
   page.drawText(title, { x: M, y: headerY + mm(9), size: fitSize(title, fonts.bold, 15, W - mm(40)), font: fonts.bold, color: rgb(1, 1, 1) });
 
   // Status pill (top right)
@@ -95,12 +96,12 @@ export async function renderCertificatePdf(data: CertificateData): Promise<Uint8
   // Fact grid (2 columns)
   const lastDay = lastCoveredDay(data.warrantyEndDate as Date | string | null);
   const facts: [string, string][] = [
-    ["Thời hạn bảo hành", fmtDuration(data.durationMonths)],
+    ["Xuất xứ phôi", data.origin ?? data.brand.name],
+    ["Labo chế tác (ủy quyền)", data.laboratoryName ?? "—"],
     ["Ngày kích hoạt", fmtDateVN(data.activatedAt)],
-    ["Bắt đầu bảo hành", data.warrantyStartDate ? fmtDate(data.warrantyStartDate) : "Chờ xác nhận ngày lắp"],
-    ["Hiệu lực đến hết ngày", lastDay ? fmtDate(lastDay) : "—"],
     ["Số đơn vị phục hình", data.unitCount ? `${data.unitCount} răng` : "—"],
-    ["Labo được ủy quyền", data.laboratoryName ?? "—"],
+    ["Bảo hành do labo cung cấp", fmtDuration(data.durationMonths)],
+    ["Hiệu lực bảo hành đến hết", lastDay ? fmtDate(lastDay) : data.activatedAt ? "Chờ xác nhận ngày lắp" : "—"],
   ];
   if (data.private) {
     facts.push(
@@ -126,7 +127,7 @@ export async function renderCertificatePdf(data: CertificateData): Promise<Uint8
   if (data.private?.accessCode) {
     const boxH = mm(16);
     page.drawRectangle({ x: M, y: y - boxH + mm(6), width: W, height: boxH, color: rgb(0.98, 0.96, 0.92), borderColor: gold, borderWidth: 0.6 });
-    page.drawText("MÃ XÁC THỰC BỆNH NHÂN — giữ bí mật, dùng để xem hồ sơ cá nhân & yêu cầu bảo hành", { x: M + mm(4), y: y, size: 7, font: fonts.semibold, color: muted });
+    page.drawText("MÃ XÁC THỰC BỆNH NHÂN — giữ bí mật, dùng để xem hồ sơ phục hình cá nhân", { x: M + mm(4), y: y, size: 7, font: fonts.semibold, color: muted });
     page.drawText(data.private.accessCode, { x: M + mm(4), y: y - mm(7.5), size: 15, font: fonts.bold, color: navy });
     y -= boxH + mm(4);
   }
@@ -164,7 +165,7 @@ export async function renderCertificatePdf(data: CertificateData): Promise<Uint8
   page.drawLine({ start: { x: M, y: footerY + mm(9) }, end: { x: A4.w - M, y: footerY + mm(9) }, thickness: 0.4, color: gold });
   const support = [data.brand.supportPhone && `Hotline: ${data.brand.supportPhone}`, data.brand.supportEmail, data.brand.websiteUrl].filter(Boolean).join("  ·  ");
   page.drawText(support || "Vtech Dental Supply", { x: M, y: footerY + mm(3.5), size: 7.5, font: fonts.regular, color: muted });
-  const note = `Chứng nhận điện tử — tình trạng hiện hành luôn được xác thực tại địa chỉ QR.${data.policyVersion ? ` Chính sách v${data.policyVersion}.` : ""}`;
+  const note = "Chứng nhận nguồn gốc điện tử do Vtech phát hành — tình trạng hiện hành luôn được xác thực tại địa chỉ QR. Bảo hành phục hình thuộc trách nhiệm của labo chế tác.";
   page.drawText(note, { x: M, y: footerY - mm(1), size: 6.5, font: fonts.regular, color: muted });
 
   return doc.save();

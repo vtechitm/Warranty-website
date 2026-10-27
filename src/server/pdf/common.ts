@@ -32,9 +32,9 @@ export async function createDoc(meta: { title: string; subject?: string; keyword
     bold: await doc.embedFont(bytes.bold, { subset: true }),
   };
   doc.setTitle(meta.title);
-  doc.setAuthor("Vtech Dental Warranty Platform");
-  doc.setProducer("Vtech Dental Warranty Platform");
-  doc.setCreator("Vtech Dental Warranty Platform");
+  doc.setAuthor("Vtech – Nền tảng truy xuất nguồn gốc");
+  doc.setProducer("Vtech – Nền tảng truy xuất nguồn gốc");
+  doc.setCreator("Vtech – Nền tảng truy xuất nguồn gốc");
   if (meta.subject) doc.setSubject(meta.subject);
   if (meta.keywords) doc.setKeywords(meta.keywords);
   return { doc, fonts };

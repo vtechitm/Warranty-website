@@ -54,13 +54,13 @@ async function main() {
     data: { name: "Overneer", slug: "overneer", codePrefix: "OV", tagline: "Mặt dán sứ siêu mỏng", primaryColor: "#2B2D42", secondaryColor: "#D4AF37", supportPhone: "1900 0002" },
   });
 
-  const conditions = "Bảo hành áp dụng khi phục hình được chế tác bởi labo ủy quyền và lắp tại phòng khám, bệnh nhân tái khám định kỳ theo hướng dẫn.\nBảo hành bao gồm nứt, vỡ sứ do lỗi vật liệu hoặc chế tác.";
-  const exclusions = "Chấn thương, tai nạn, cắn vật cứng; bệnh lý nha chu hoặc tủy răng; tự ý sửa chữa tại cơ sở không ủy quyền; không tái khám theo lịch.";
+  // Product information (traceability): durationMonths is only Vtech's *suggested* warranty — labs set the actual one.
+  const origins = "Phôi nhập khẩu chính hãng — phân phối độc quyền bởi Vtech Dental Supply (mẫu demo)";
   const products = await Promise.all([
-    prisma.product.create({ data: { brandId: origin.id, sku: "OBP", name: "Origin Beyond Plus", materialType: "Zirconia đa lớp cao cấp", policies: { create: { version: 1, durationMonths: 120, conditions, exclusions, careInstructions: CARE, benefits: "Thay mới miễn phí khi nứt vỡ do lỗi vật liệu\nKiểm tra định kỳ miễn phí tại phòng khám liên kết\nXác thực chính hãng trực tuyến trọn đời", claimInstructions: "Liên hệ phòng khám đã lắp hoặc hotline thương hiệu, cung cấp mã bảo hành và hình ảnh tình trạng răng." } } } }),
-    prisma.product.create({ data: { brandId: origin.id, sku: "ORG", name: "Origin", materialType: "Zirconia", policies: { create: { version: 1, durationMonths: 84, conditions, exclusions, careInstructions: CARE } } } }),
-    prisma.product.create({ data: { brandId: elite.id, sku: "ELZ", name: "Elite Zirconia", materialType: "Zirconia nguyên khối", policies: { create: { version: 1, durationMonths: 60, conditions, exclusions, careInstructions: CARE } } } }),
-    prisma.product.create({ data: { brandId: overneer.id, sku: "OVN", name: "Overneer Veneer", materialType: "Sứ ép thẩm mỹ", policies: { create: { version: 1, durationMonths: 36, startRule: "ACTIVATION_DATE", conditions, exclusions, careInstructions: CARE } } } }),
+    prisma.product.create({ data: { brandId: origin.id, sku: "OBP", name: "Origin Beyond Plus", materialType: "Zirconia đa lớp cao cấp", origin: origins, policies: { create: { version: 1, durationMonths: 120, careInstructions: CARE } } } }),
+    prisma.product.create({ data: { brandId: origin.id, sku: "ORG", name: "Origin", materialType: "Zirconia", origin: origins, policies: { create: { version: 1, durationMonths: 84, careInstructions: CARE } } } }),
+    prisma.product.create({ data: { brandId: elite.id, sku: "ELZ", name: "Elite Zirconia", materialType: "Zirconia nguyên khối", origin: origins, policies: { create: { version: 1, durationMonths: 60, careInstructions: CARE } } } }),
+    prisma.product.create({ data: { brandId: overneer.id, sku: "OVN", name: "Overneer Veneer", materialType: "Sứ ép thẩm mỹ", origin: origins, policies: { create: { version: 1, durationMonths: 36, careInstructions: CARE } } } }),
   ]);
   const [obp, , elz] = products;
 
@@ -91,19 +91,19 @@ async function main() {
   const d = (s: string) => new Date(`${s}T00:00:00Z`);
   const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
 
-  const base = (name: string, phone: string, teeth: number[], clinic: string, install: string | null, completion: string) => ({
+  const base = (name: string, phone: string, teeth: number[], clinic: string, install: string | null, completion: string, warrantyMonths = 120) => ({
     patient: { fullName: name, phone, birthYear: 1980, externalRef: null, consent: true as const },
     clinic: { clinicId: null, name: clinic, dentistName: "BS. Phạm Quốc Khánh", phone: null },
     restoration: {
       restorationType: teeth.length > 2 ? "Cầu răng (Bridge)" : "Mão đơn (Crown)",
       teeth: teeth.map((toothNumber) => ({ toothNumber, restorationType: null, shade: "A2", notes: null })),
-      completionDate: d(completion), installationDate: install ? d(install) : null, materialLotNumber: "OBP-2026-09", notes: null,
+      completionDate: d(completion), installationDate: install ? d(install) : null, warrantyMonths, materialLotNumber: "OBP-2026-09", notes: null,
     },
   });
 
   const active = await activateWarranty(labActor, codes[0].code, base("Nguyễn Văn An", "0912345678", [11, 12, 21, 22], "Nha khoa Thẩm mỹ Ánh Dương", today, today));
   const pending = await activateWarranty(labActor, codes[1].code, base("Trần Thị Bình", "0987654321", [36, 37], "Nha khoa Smile Care", null, today));
-  const expired = await activateWarranty(labActor, eliteCodes[0].code, base("Lê Văn Cường", "0909090909", [46], "Nha khoa Smile Care", "2020-03-10", "2020-03-01"));
+  const expired = await activateWarranty(labActor, eliteCodes[0].code, base("Lê Văn Cường", "0909090909", [46], "Nha khoa Smile Care", "2020-03-10", "2020-03-01", 60));
   const revoked = await activateWarranty(labActor, codes[2].code, base("Phạm Thị Dung", "0911111111", [14], "Nha khoa Thẩm mỹ Ánh Dương", today, today));
   await revokeCode(adminActor, revoked.code, "Demo: thẻ bị thất lạc và phát hành lại");
 

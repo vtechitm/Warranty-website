@@ -14,8 +14,6 @@ import { listClaims, submitClaim } from "@/server/services/claims";
 import { readPatientAccessToken, requestPatientOtp, verifyPatientAccess } from "@/server/services/passport";
 import { LocalStorage, S3Storage, setStorage } from "@/server/storage";
 import { ConsoleOtpProvider, setOtpProvider } from "@/server/otp";
-import { POST as passportClaimRoute } from "@/app/api/v1/passports/[code]/claims/route";
-import { GET as claimImageRoute } from "@/app/api/v1/claims/[id]/images/[name]/route";
 import JSZip from "jszip";
 import { exportBatchPrintPackage, exportBatchXlsx, exportWarrantiesXlsx, qrFileName } from "@/server/services/exports";
 import { activationInput, makeUser, resetDb, seedBasics } from "./helpers";
@@ -129,41 +127,25 @@ describe("claim photos", () => {
     await expectAppError(validateClaimImages([file("big.jpg", big, "image/jpeg")]), "BAD_REQUEST", "IMAGE_TOO_LARGE");
   });
 
-  it("verified patient uploads photos via multipart; only authorized viewers can fetch them", async () => {
-    const { code, accessCode } = await activeCode();
-    const { token } = await verifyPatientAccess(code, "ACCESS_CODE", accessCode);
-    const fd = new FormData();
-    fd.set("claimantName", "Nguyễn Văn A");
-    fd.set("contactPhone", "0901234567");
-    fd.set("contactEmail", "");
-    fd.set("description", "Mẻ sứ răng 11 khi ăn");
-    fd.append("images", file("a.png", PNG, "image/png"));
-    fd.append("images", file("b.jpg", JPEG, "image/jpeg"));
-    const res = await passportClaimRoute(
-      new NextRequest(`http://localhost:3000/api/v1/passports/${code}/claims`, { method: "POST", body: fd, headers: { "x-patient-access": token } }),
-      { params: Promise.resolve({ code }) },
-    );
-    expect(res.status).toBe(200);
-    expect((await res.json()).data.imageCount).toBe(2);
+  // The claims feature has no HTTP/UI entry points any more (traceability model); the service layer is kept intact.
+  it("stores claim photos privately; only authorized viewers can fetch them (service layer)", async () => {
+    const { code } = await activeCode();
+    const images = await validateClaimImages([file("a.png", PNG, "image/png"), file("b.jpg", JPEG, "image/jpeg")]);
+    const claim = await submitClaim(null, code, { claimantType: "PATIENT", claimantName: "Nguyễn Văn A", contactPhone: "0901234567", contactEmail: null, description: "Mẻ sứ răng 11 khi ăn" }, images);
+    expect(claim.imageUrls).toHaveLength(2);
 
     const { items } = await listClaims(ctx.admin, { page: 1, pageSize: 10 });
     expect(items[0].images).toHaveLength(2);
     expect(items[0]).not.toHaveProperty("imageUrls");
     const url = items[0].images[0];
     const [, , , , claimId, , name] = url.split("/");
-    expect(url).toBe(`/api/v1/claims/${claimId}/images/${name}`);
 
     expect((await getClaimImage(claimId, name, { actor: ctx.admin, patientCode: null })).contentType).toBe("image/png");
     expect((await getClaimImage(claimId, name, { actor: ctx.labAUser, patientCode: null })).body.equals(PNG)).toBe(true);
+    expect((await getClaimImage(claimId, name, { actor: null, patientCode: code })).contentType).toBe("image/png");
     await expectAppError(getClaimImage(claimId, name, { actor: ctx.labBUser, patientCode: null }), "NOT_FOUND");
     await expectAppError(getClaimImage(claimId, name, { actor: null, patientCode: "ORG26-AAAAAAAA" }), "NOT_FOUND");
     await expectAppError(getClaimImage(claimId, "../../etc.png", { actor: ctx.admin, patientCode: null }), "NOT_FOUND");
-
-    const anon = await claimImageRoute(new NextRequest(`http://localhost:3000${url}`), { params: Promise.resolve({ id: claimId, name }) });
-    expect(anon.status).toBe(404);
-    const asPatient = await claimImageRoute(new NextRequest(`http://localhost:3000${url}`, { headers: { "x-patient-access": token } }), { params: Promise.resolve({ id: claimId, name }) });
-    expect(asPatient.status).toBe(200);
-    expect(asPatient.headers.get("content-type")).toBe("image/png");
   });
 
   it("removes stored photos if the claim cannot be created", async () => {

@@ -1,4 +1,4 @@
-import { Boxes, CheckCircle2, Clock, Hourglass, LifeBuoy, Percent, ShieldCheck, ShieldOff, Truck } from "lucide-react";
+import { Ban, Boxes, CheckCircle2, Clock, Hourglass, Percent, ShieldCheck, ShieldOff, Truck } from "lucide-react";
 import { requireActor } from "@/server/auth/session";
 import { adminDashboard } from "@/server/services/dashboard";
 import { Kpi, PageHeader } from "@/components/ui/misc";
@@ -47,7 +47,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
         <Kpi label="Bảo hành còn hiệu lực" value={fmtNumber(k.active)} icon={<ShieldCheck />} />
         <Kpi label="Đã hết hạn" value={fmtNumber(k.expired)} icon={<Clock />} />
         <Kpi label="Chờ xác nhận ngày lắp" value={fmtNumber(k.pendingInstallation)} icon={<Hourglass />} />
-        <Kpi label="Yêu cầu bảo hành" value={fmtNumber(k.claims)} icon={<LifeBuoy />} sub={`${fmtNumber(k.openClaims)} đang mở · ${fmtNumber(k.revoked)} mã thu hồi`} />
+        <Kpi label="Mã đã thu hồi" value={fmtNumber(k.revoked)} icon={<Ban />} sub="Hiển thị cảnh báo khi quét QR" />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-3">

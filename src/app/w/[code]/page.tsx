@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPrivatePassport, getPublicPassport, PATIENT_ACCESS_COOKIE, phoneOtpEnabled, readPatientAccessToken } from "@/server/services/passport";
-import { claimImageLimits } from "@/server/services/claim-images";
 import { primaryDomain, resolveBrandByHost } from "@/server/services/catalog";
 import { clientIp } from "@/server/http/handler";
 import { AppError } from "@/server/errors";
@@ -14,7 +13,7 @@ type Props = { params: Promise<{ code: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { code } = await params;
-  return { title: `Chứng nhận ${decodeURIComponent(code).toUpperCase()}`, robots: { index: false, follow: false } };
+  return { title: `Nguồn gốc xuất xứ ${decodeURIComponent(code).toUpperCase()}`, robots: { index: false, follow: false } };
 }
 
 export default async function WarrantyPage({ params }: Props) {
@@ -44,14 +43,7 @@ export default async function WarrantyPage({ params }: Props) {
   const verified = passport.state !== "NOT_ACTIVATED" && passport.state !== "REVOKED" && (await readPatientAccessToken(token, passport.code));
   const privateData = verified ? await getPrivatePassport(passport.code) : null;
 
-  const limits = claimImageLimits();
-  return (
-    <PassportView
-      passport={passport}
-      privateData={privateData}
-      options={{ otpEnabled: phoneOtpEnabled(), maxImages: limits.maxCount, maxImageMb: Math.floor(limits.maxBytes / 1024 / 1024) }}
-    />
-  );
+  return <PassportView passport={passport} privateData={privateData} options={{ otpEnabled: phoneOtpEnabled() }} />;
 }
 
 function Message({ title, body }: { title: string; body: string }) {

@@ -27,21 +27,21 @@ export default async function Home() {
 
         <section className="flex flex-1 flex-col items-center justify-center py-16 text-center">
           <span className="mb-5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest" style={{ borderColor: `${gold}55`, color: gold }}>
-            <Sparkles className="size-3.5" /> Digital Dental Passport
+            <Sparkles className="size-3.5" /> Truy xuất nguồn gốc xuất xứ
           </span>
           <h1 className="max-w-3xl text-balance text-4xl font-bold leading-tight sm:text-5xl">
-            {brand?.tagline ?? "Chứng nhận bảo hành răng sứ điện tử chính hãng"}
+            {brand?.tagline ?? "Truy xuất nguồn gốc xuất xứ phôi răng sứ chính hãng"}
           </h1>
           <p className="mt-5 max-w-xl text-pretty text-white/70">
-            Quét mã QR trên thẻ bảo hành hoặc nhập mã để xác thực phục hình chính hãng và xem thời hạn bảo hành của bạn.
+            Quét mã QR trên thẻ hoặc nhập mã để xác thực phôi chính hãng, labo chế tác và thời hạn bảo hành do labo cung cấp.
           </p>
           <div className="mt-10 w-full max-w-xl">
             <LookupForm accent={gold} />
           </div>
           <div className="mt-14 grid w-full max-w-3xl gap-4 text-left sm:grid-cols-3">
             {[
-              { icon: QrCode, t: "Một mã — một ca phục hình", d: "Mã QR cố định suốt vòng đời bảo hành." },
-              { icon: ShieldCheck, t: "Bảo mật dữ liệu", d: "Thông tin cá nhân chỉ hiển thị sau khi xác thực." },
+              { icon: QrCode, t: "Một mã — một ca phục hình", d: "Mã QR cố định suốt vòng đời phục hình." },
+              { icon: ShieldCheck, t: "Nguồn gốc rõ ràng", d: "Phôi chính hãng, labo ủy quyền — xác thực bởi Vtech." },
               { icon: Sparkles, t: "Đa thương hiệu", d: "Origin, Elite Zirconia, Overneer và hơn thế." },
             ].map(({ icon: Icon, t, d }) => (
               <div key={t} className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
@@ -53,7 +53,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <footer className="text-center text-xs text-white/40">© {new Date().getFullYear()} Vtech Dental Supply · Hệ thống bảo hành răng sứ điện tử</footer>
+        <footer className="text-center text-xs text-white/40">© {new Date().getFullYear()} Vtech Dental Supply · Nền tảng truy xuất nguồn gốc xuất xứ</footer>
       </div>
     </main>
   );

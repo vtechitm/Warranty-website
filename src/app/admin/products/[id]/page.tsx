@@ -4,7 +4,7 @@ import { requireActor } from "@/server/auth/session";
 import { getProduct } from "@/server/services/catalog";
 import { can } from "@/server/auth/permissions";
 import { AppError } from "@/server/errors";
-import { fmtDateTimeVN, fmtDuration, START_RULE_LABEL } from "@/lib/format";
+import { fmtDateTimeVN, fmtDuration } from "@/lib/format";
 import { PageHeader } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
 import { FormDialog } from "@/components/form-dialog";
@@ -28,7 +28,7 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
       <PageHeader
         back={{ href: "/admin/products", label: "Sản phẩm" }}
         title={p.name}
-        description={`${p.brand.name} · SKU ${p.sku}${p.materialType ? ` · ${p.materialType}` : ""}`}
+        description={`${p.brand.name} · SKU ${p.sku}${p.materialType ? ` · ${p.materialType}` : ""}${p.origin ? ` · Xuất xứ: ${p.origin}` : ""}`}
         actions={
           manage && (
             <>
@@ -42,26 +42,22 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
                 fields={[
                   { name: "name", label: "Tên", required: true, defaultValue: p.name },
                   { name: "materialType", label: "Loại vật liệu", defaultValue: p.materialType ?? "" },
+                  { name: "origin", label: "Xuất xứ / nhà sản xuất", defaultValue: p.origin ?? "", placeholder: "VD: Sản xuất tại Đức — nhập khẩu bởi Vtech" },
                   { name: "imageUrl", label: "URL hình ảnh", type: "url", defaultValue: p.imageUrl ?? "" },
                   { name: "description", label: "Mô tả", type: "textarea", defaultValue: p.description ?? "" },
                   { name: "isActive", label: "Đang bán", type: "checkbox", defaultValue: p.isActive },
                 ]}
               />
               <FormDialog
-                trigger={<><Plus /> Phát hành phiên bản chính sách</>}
-                title="Phát hành chính sách mới"
-                description="Áp dụng cho các lần kích hoạt từ nay. Chứng nhận đã kích hoạt giữ nguyên phiên bản cũ."
+                trigger={<><Plus /> Cập nhật thông tin phôi</>}
+                title="Cập nhật thông tin phôi"
+                description="Thời hạn bảo hành chỉ là gợi ý — labo tự chọn thời hạn khi kích hoạt. Hồ sơ đã kích hoạt không bị ảnh hưởng."
                 endpoint={`/products/${p.id}/policies`}
                 wide
-                submitLabel="Phát hành"
+                submitLabel="Lưu phiên bản mới"
                 fields={[
-                  { name: "durationMonths", label: "Thời hạn (tháng)", type: "number", required: true, defaultValue: current?.durationMonths ?? 60, min: 1, max: 600 },
-                  { name: "startRule", label: "Bắt đầu tính", type: "select", required: true, defaultValue: current?.startRule ?? "INSTALLATION_DATE", options: Object.entries(START_RULE_LABEL).map(([value, label]) => ({ value, label })) },
-                  { name: "conditions", label: "Điều kiện bảo hành", type: "textarea", defaultValue: current?.conditions ?? "" },
-                  { name: "exclusions", label: "Trường hợp không bảo hành", type: "textarea", defaultValue: current?.exclusions ?? "" },
-                  { name: "claimInstructions", label: "Thủ tục yêu cầu bảo hành", type: "textarea", defaultValue: current?.claimInstructions ?? "" },
-                  { name: "benefits", label: "Quyền lợi (mỗi dòng một ý)", type: "textarea", defaultValue: current?.benefits ?? "" },
-                  { name: "careInstructions", label: "Hướng dẫn chăm sóc (mỗi dòng một ý)", type: "textarea", defaultValue: current?.careInstructions ?? "" },
+                  { name: "durationMonths", label: "Thời hạn bảo hành gợi ý cho labo (tháng)", type: "number", required: true, defaultValue: current?.durationMonths ?? 60, min: 1, max: 600, hint: "Điền sẵn trong form kích hoạt, labo có thể sửa" },
+                  { name: "careInstructions", label: "Hướng dẫn chăm sóc (mỗi dòng một ý)", type: "textarea", defaultValue: current?.careInstructions ?? "", full: true },
                 ]}
               />
             </>
@@ -69,7 +65,7 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
         }
       />
       <section className="card overflow-hidden">
-        <h2 className="px-5 py-4 font-semibold">Lịch sử phiên bản chính sách</h2>
+        <h2 className="px-5 py-4 font-semibold">Lịch sử thông tin phôi</h2>
         <div className="divide-y divide-line">
           {p.policies.map((pol) => (
             <div key={pol.id} className="grid gap-3 px-5 py-4 text-sm md:grid-cols-[120px_1fr]">
@@ -78,13 +74,12 @@ export default async function ProductDetail({ params }: { params: Promise<{ id: 
                 {pol.isCurrent ? <Badge tone="green">Hiện hành</Badge> : <Badge>Lưu trữ</Badge>}
               </div>
               <div className="space-y-1">
-                <div><b>{fmtDuration(pol.durationMonths)}</b> · {START_RULE_LABEL[pol.startRule]} · phát hành {fmtDateTimeVN(pol.createdAt)}</div>
-                {pol.conditions && <p className="whitespace-pre-line text-muted"><b className="text-ink">Điều kiện:</b> {pol.conditions}</p>}
-                {pol.exclusions && <p className="whitespace-pre-line text-muted"><b className="text-ink">Loại trừ:</b> {pol.exclusions}</p>}
+                <div>Bảo hành gợi ý: <b>{fmtDuration(pol.durationMonths)}</b> · cập nhật {fmtDateTimeVN(pol.createdAt)}</div>
+                {pol.careInstructions && <p className="whitespace-pre-line text-muted"><b className="text-ink">Hướng dẫn chăm sóc:</b> {pol.careInstructions}</p>}
               </div>
             </div>
           ))}
-          {p.policies.length === 0 && <div className="px-5 py-6 text-sm text-muted">Chưa có chính sách — không thể sinh mã cho sản phẩm này.</div>}
+          {p.policies.length === 0 && <div className="px-5 py-6 text-sm text-muted">Chưa có thông tin phôi — không thể sinh mã cho sản phẩm này.</div>}
         </div>
       </section>
     </div>

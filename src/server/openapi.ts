@@ -66,18 +66,13 @@ export const API_PATHS: Record<string, Record<string, Op>> = {
   "/warranties/{code}/suspend": { post: P("Tạm ngưng / mở lại bảo hành", "Warranties", { roles: "SUPER_ADMIN" }) },
   "/warranties/{code}/certificate": { get: P("PDF chứng nhận đầy đủ", "Certificates", { binary: "application/pdf" }) },
   "/warranties/{code}/qr": { get: P("Ảnh QR của mã", "Warranties", { query: { format: "png|svg", size: "int" }, binary: "image/png" }) },
-  "/warranties/{code}/claims": { post: P("Gửi yêu cầu bảo hành (labo/phòng khám)", "Claims") },
 
   "/passports/{code}": { get: P("Hộ chiếu nha khoa công khai (an toàn dữ liệu)", "Passports", { auth: "none", response: "PublicPassport" }) },
   "/passports/{code}/verify": { post: P("Xác thực bệnh nhân (mã xác thực / SĐT)", "Passports", { auth: "none", body: "PatientVerify" }) },
   "/passports/{code}/otp": { post: P("Gửi mã OTP tới SĐT đã đăng ký (sau đó xác thực PHONE_OTP)", "Passports", { auth: "none" }) },
   "/passports/{code}/private": { get: P("Thông tin phục hình riêng tư (sau xác thực)", "Passports", { auth: "patient" }) },
   "/passports/{code}/certificate": { get: P("PDF chứng nhận cho bệnh nhân", "Passports", { auth: "none", binary: "application/pdf" }) },
-  "/passports/{code}/claims": { post: P("Bệnh nhân gửi yêu cầu bảo hành", "Claims", { auth: "patient" }) },
 
-  "/claims": { get: P("Danh sách yêu cầu bảo hành", "Claims") },
-  "/claims/{id}/images/{name}": { get: P("Ảnh yêu cầu bảo hành (quản trị / labo / bệnh nhân đã xác thực)", "Claims", { binary: "image/jpeg" }) },
-  "/claims/{id}/status": { post: P("Cập nhật trạng thái yêu cầu", "Claims", { roles: "SUPER_ADMIN" }) },
   "/clinics": { get: P("Tìm phòng khám (danh sách của labo)", "Clinics") },
   "/dashboard/admin": { get: P("Thống kê quản trị", "Dashboard") },
   "/dashboard/lab": { get: P("Thống kê labo", "Dashboard") },

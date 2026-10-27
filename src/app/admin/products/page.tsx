@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 import { requireActor } from "@/server/auth/session";
 import { listBrands, listProducts } from "@/server/services/catalog";
 import { can } from "@/server/auth/permissions";
-import { fmtDuration, fmtNumber, START_RULE_LABEL } from "@/lib/format";
+import { fmtDuration, fmtNumber } from "@/lib/format";
 import { PageHeader, Empty } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
 import { FormDialog } from "@/components/form-dialog";
@@ -16,14 +16,14 @@ export default async function ProductsPage() {
   return (
     <div>
       <PageHeader
-        title="Sản phẩm & chính sách bảo hành"
-        description="Chính sách có phiên bản: thay đổi chính sách không ảnh hưởng tới các chứng nhận đã kích hoạt."
+        title="Sản phẩm (phôi)"
+        description="Thông tin phôi hiển thị trên trang truy xuất nguồn gốc. Thời hạn bảo hành chỉ là gợi ý — labo tự chọn khi kích hoạt."
         actions={
           can(actor.role, "product:manage") && (
             <FormDialog
               trigger={<><Plus /> Thêm sản phẩm</>}
               title="Thêm sản phẩm"
-              description="Kèm chính sách bảo hành phiên bản 1."
+              description="Thông tin phôi và thời hạn bảo hành gợi ý cho labo."
               endpoint="/products"
               wide
               fields={[
@@ -31,12 +31,11 @@ export default async function ProductsPage() {
                 { name: "sku", label: "Mã SKU", required: true, placeholder: "OBP" },
                 { name: "name", label: "Tên sản phẩm", required: true, full: true, placeholder: "Origin Beyond Plus" },
                 { name: "materialType", label: "Loại vật liệu", placeholder: "Zirconia đa lớp" },
+                { name: "origin", label: "Xuất xứ / nhà sản xuất", placeholder: "Sản xuất tại Đức — nhập khẩu bởi Vtech" },
                 { name: "imageUrl", label: "URL hình ảnh", type: "url" },
                 { name: "description", label: "Mô tả", type: "textarea" },
-                { name: "policy.durationMonths", label: "Thời hạn bảo hành (tháng)", type: "number", required: true, defaultValue: 120, min: 1, max: 600 },
-                { name: "policy.startRule", label: "Bắt đầu tính bảo hành", type: "select", required: true, defaultValue: "INSTALLATION_DATE", options: Object.entries(START_RULE_LABEL).map(([value, label]) => ({ value, label })) },
-                { name: "policy.conditions", label: "Điều kiện bảo hành", type: "textarea" },
-                { name: "policy.exclusions", label: "Trường hợp không bảo hành", type: "textarea" },
+                { name: "policy.durationMonths", label: "Bảo hành gợi ý cho labo (tháng)", type: "number", required: true, defaultValue: 120, min: 1, max: 600, hint: "Labo có thể sửa khi kích hoạt" },
+                { name: "policy.careInstructions", label: "Hướng dẫn chăm sóc (mỗi dòng một ý)", type: "textarea" },
               ]}
             />
           )
@@ -48,7 +47,7 @@ export default async function ProductsPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="table-base">
-              <thead><tr><th>Sản phẩm</th><th>Thương hiệu</th><th>Chính sách hiện hành</th><th className="text-right">Mã đã sinh</th><th>Trạng thái</th></tr></thead>
+              <thead><tr><th>Sản phẩm</th><th>Thương hiệu</th><th>Bảo hành gợi ý</th><th className="text-right">Mã đã sinh</th><th>Trạng thái</th></tr></thead>
               <tbody>
                 {products.map((p) => {
                   const pol = p.policies[0];
@@ -56,7 +55,7 @@ export default async function ProductsPage() {
                     <tr key={p.id}>
                       <td><Link href={`/admin/products/${p.id}`} className="font-semibold text-navy-800 hover:underline">{p.name}</Link><div className="text-xs text-muted">{p.sku} · {p.materialType ?? "—"}</div></td>
                       <td>{p.brand.name}</td>
-                      <td className="text-sm">{pol ? <>{fmtDuration(pol.durationMonths)} · v{pol.version}<div className="text-xs text-muted">{START_RULE_LABEL[pol.startRule]}</div></> : <Badge tone="amber">Chưa có chính sách</Badge>}</td>
+                      <td className="text-sm">{pol ? <>{fmtDuration(pol.durationMonths)}<div className="text-xs text-muted">Labo có thể chọn khác</div></> : <Badge tone="amber">Chưa có thông tin phôi</Badge>}</td>
                       <td className="text-right">{fmtNumber(p._count.codes)}</td>
                       <td>{p.isActive ? <Badge tone="green">Đang bán</Badge> : <Badge>Ngừng</Badge>}</td>
                     </tr>

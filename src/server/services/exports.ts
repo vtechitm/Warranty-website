@@ -45,7 +45,7 @@ export async function exportBatchXlsx(actor: Actor, batchId: string) {
   assertCan(actor, "report:export");
   const { batch, codes } = await batchCodesForExport(actor, batchId);
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Vtech Dental Warranty";
+  wb.creator = "Vtech – Truy xuất nguồn gốc";
   await buildBatchSheet(wb, batch, codes);
   await audit(actor, { action: "export.batch_xlsx", entityType: "WarrantyBatch", entityId: batchId, metadata: { rows: codes.length } });
   return { filename: `${batch.batchNumber}.xlsx`, buffer: Buffer.from(await wb.xlsx.writeBuffer()) };
@@ -100,7 +100,7 @@ export async function exportBatchPrintPackage(actor: Actor, batchId: string, ran
   }
   zip.file("du-lieu-in.csv", "\uFEFF" + csv.join("\r\n"));
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Vtech Dental Warranty";
+  wb.creator = "Vtech – Truy xuất nguồn gốc";
   await buildBatchSheet(wb, batch, codes);
   zip.file("du-lieu-in.xlsx", Buffer.from(await wb.xlsx.writeBuffer()));
   zip.file("HUONG-DAN-NHA-IN.txt", printReadme(batch.batchNumber, batch.product.name, codes.length, codes[0].serial, codes.at(-1)!.serial));

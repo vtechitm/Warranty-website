@@ -1,6 +1,8 @@
-# Vtech Dental Warranty Platform — Architecture (v2)
+# Vtech – Nền tảng truy xuất nguồn gốc xuất xứ — Architecture (v3)
 
-Hệ thống bảo hành răng sứ điện tử · Digital Dental Passport
+Truy xuất nguồn gốc xuất xứ phôi răng sứ chính hãng.
+
+> **v3 business model**: Vtech supplies blanks (phôi) and certifies their **origin**. The **warranty belongs to the laboratory**: the lab enters the installation date and the warranty duration at activation (pre-filled with Vtech's suggested duration for the product). Vtech-defined warranty terms (conditions/exclusions/benefits) no longer apply, and warranty claims are not handled by the platform.
 
 ## 1. Business model (confirmed V2 rules)
 
@@ -12,7 +14,7 @@ Hệ thống bảo hành răng sứ điện tử · Digital Dental Passport
 | Only Vtech-issued lab accounts can activate | `warranty:activate` permission (LAB_ADMIN, LAB_STAFF) + `assignedLaboratoryId = actor.laboratoryId` + lab authorized for the brand |
 | A code cannot be activated twice | Conditional `UPDATE … WHERE activationStatus='NOT_ACTIVATED' AND assignedLaboratoryId=… AND revokedAt IS NULL` inside a transaction **and** `WarrantyActivation.warrantyCodeId UNIQUE` |
 | Product is bound to the code | `WarrantyCode.productId` set at generation; the activation payload has no product field |
-| Configurable, versioned policy | `WarrantyPolicy (productId, version) UNIQUE`; publishing creates a new version. Activation stores `policyId`, `policyVersion` and a JSON `policySnapshot` |
+| Versioned product information; lab-provided warranty | `WarrantyPolicy (productId, version) UNIQUE` now holds Vtech's *product information*: **suggested** warranty duration + care instructions (UI: "Thông tin phôi"). Activation requires `restoration.warrantyMonths` (1–600) from the lab; the case's `policySnapshot` stores `durationMonths` = lab value, `provider: "LABORATORY"`, `suggestedMonths`, start rule = installation date, and no Vtech terms. Labs (LAB_ADMIN) can correct the duration later via `/warranties/{code}/correct` (audited, end date recomputed) |
 | Revoked codes never look valid | `revokedAt` overrides every public state → `REVOKED` warning page |
 | Public QR page reveals no personal data | `getPublicPassport()` returns a whitelisted DTO; private data needs patient verification |
 | Corrections are audited | `POST /warranties/{code}/correct` writes before/after + reason to `AuditLog` |
@@ -92,8 +94,7 @@ Key indexes: `WarrantyCode(code) UNIQUE`, `(batchId, serial) UNIQUE`, `(assigned
 | Search by patient name/phone | ✅ | | ✅ | | | |
 | Correct activated record | ✅ | | own lab | | | |
 | Suspend warranty | ✅ | | | | | |
-| Submit claim | ✅ | | ✅ | ✅ | own clinic | verified |
-| Manage claims | ✅ | | | | | |
+| Submit / manage claims | — disabled in v3 (service layer kept, no endpoints) | | | | | |
 | Export reports | ✅ | own brands | own lab (warranty list) | | | |
 | Audit log / system users | ✅ | | | | | |
 

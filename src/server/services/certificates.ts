@@ -22,6 +22,7 @@ export async function buildCertificateData(code: string, viewer: { actor?: Actor
     brand: { name: brand.name, primaryColor: brand.primaryColor, secondaryColor: brand.secondaryColor, supportPhone: brand.supportPhone, supportEmail: brand.supportEmail, websiteUrl: brand.websiteUrl },
     productName: pub.product.name,
     materialType: pub.product.materialType,
+    origin: pub.product.origin,
     activatedAt: pub.activatedAt,
     warrantyStartDate: pub.warrantyStartDate,
     warrantyEndDate: pub.warrantyEndDate,

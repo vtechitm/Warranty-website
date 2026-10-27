@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div className="flex items-center justify-between px-5 py-5">
             <div>
               <div className="text-sm font-bold tracking-[0.25em] text-gold-500">VTECH DENTAL</div>
-              <div className="text-[11px] text-white/50">Warranty Platform</div>
+              <div className="text-[11px] text-white/50">Truy xuất nguồn gốc</div>
             </div>
             <LogoutButton className="text-white/60 lg:hidden" label="" />
           </div>

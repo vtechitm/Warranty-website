@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, Building2, ClipboardCheck, FileClock, LayoutDashboard, LifeBuoy, Package, ShieldCheck, Tags, Users } from "lucide-react";
+import { Boxes, Building2, ClipboardCheck, FileClock, LayoutDashboard, Package, ShieldCheck, Tags, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const ITEMS = [
@@ -11,8 +11,7 @@ const ITEMS = [
   { href: "/admin/warranties", label: "Mã bảo hành", icon: ShieldCheck, superOnly: false },
   { href: "/admin/laboratories", label: "Labo", icon: Building2, superOnly: false },
   { href: "/admin/brands", label: "Thương hiệu", icon: Tags, superOnly: false },
-  { href: "/admin/products", label: "Sản phẩm & chính sách", icon: Package, superOnly: false },
-  { href: "/admin/claims", label: "Yêu cầu bảo hành", icon: LifeBuoy, superOnly: true },
+  { href: "/admin/products", label: "Sản phẩm (phôi)", icon: Package, superOnly: false },
   { href: "/admin/users", label: "Người dùng", icon: Users, superOnly: true },
   { href: "/admin/audit", label: "Nhật ký kiểm toán", icon: FileClock, superOnly: true },
   { href: "/api/v1/openapi.json", label: "API (OpenAPI)", icon: ClipboardCheck, superOnly: true },

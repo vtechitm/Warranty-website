@@ -1,10 +1,10 @@
-# Vtech Dental Warranty Platform
+# Vtech – Nền tảng truy xuất nguồn gốc xuất xứ
 
-**Hệ thống bảo hành răng sứ điện tử · Digital Dental Passport**
+**Truy xuất nguồn gốc xuất xứ phôi răng sứ chính hãng**
 
-Multi-brand warranty platform for Vtech Dental Supply, dental laboratories, clinics and patients (Origin, Origin Beyond Plus, Elite Zirconia, Overneer, …).
+Multi-brand origin-traceability platform for Vtech Dental Supply, dental laboratories, clinics and patients (Origin, Origin Beyond Plus, Elite Zirconia, Overneer, …).
 
-Vtech generates warranty codes + QR cards in advance → labs scan and activate them with patient / clinic / tooth data → patients scan the same QR and see a premium digital certificate. The QR never changes.
+Vtech generates codes + QR cards in advance → labs scan and activate them with patient / clinic / tooth data **and the warranty they provide** (duration pre-filled with Vtech's suggestion for the blank, editable by the lab) → patients scan the same QR and see a digital certificate of origin: genuine blank, brand, origin, the authorized lab, and the lab's warranty. The QR never changes. **Vtech certifies origin; the warranty is the laboratory's.**
 
 | Area | URL | Users |
 | --- | --- | --- |
@@ -51,15 +51,16 @@ The seed prints sample QR URLs for every state (active, pending installation, ex
 1. `/admin/batches` → **Sinh lô mã mới** (e.g. 10,000 codes; > 2,000 run in background).
 2. Batch page → **Cấp mã cho labo** (next N / serial range / list), **In nhãn QR (PDF)**, ZIP PNG/SVG, Excel with QR pictures, and **Tải gói dữ liệu in** — a ZIP for the card printer: Excel with one QR picture per code, `du-lieu-in.csv` for data merge (InDesign / CorelDRAW / BarTender; `@anh_qr` = image path), QR PNG + SVG files and printing instructions (`HUONG-DAN-NHA-IN.txt`).
 3. Log in as a lab → **QUÉT QR – KÍCH HOẠT BẢO HÀNH** (camera needs HTTPS or localhost) or **NHẬP MÃ BẢO HÀNH**.
-4. Fill patient, clinic (searchable), FDI tooth chart, dates → **KÍCH HOẠT**. The success screen shows the QR, PDF certificate and the patient access code.
-5. Open `/w/{code}` on a phone → certificate; **Xác thực để xem hồ sơ** with the access code, the phone number, or a **Mã OTP** sent to that phone (dev: the code is printed in the server log) → private details, PDF, claim form with photos.
+4. Fill patient, clinic (searchable), FDI tooth chart, dates, **the lab's warranty duration** (pre-filled with the product's suggestion) → **KÍCH HOẠT**. The success screen shows the QR, PDF certificate and the patient access code.
+5. Open `/w/{code}` on a phone → certificate of origin + "Bảo hành do labo cung cấp"; **Xác thực để xem hồ sơ** with the access code, the phone number, or a **Mã OTP** sent to that phone (dev: the code is printed in the server log) → private details, PDF.
 
 ### Phase 2 features
 
 * **Code format** — 2-letter brand prefix + 8 random digits, e.g. `OR48291037` (easy to read out and type; spaces/hyphens are ignored when typed). Digits are random, not sequential, so one card cannot be used to guess others; the print order is the separate `serial`. Uniqueness is enforced by the database. Old demo codes (`ORG26-K8M4P2X9`) still work.
 
 * **Excel / CSV import of assignments** — `/admin/batches` → **Nhập cấp mã (Excel/CSV)**. Upload a sheet with columns *Mã bảo hành* + *Mã labo* (or `code`,`lab`; no header = column A/B). Every row is validated (format, existence, duplicates, activated/revoked, lab exists/active/authorized for the brand, re-assignment warning) in a preview that writes nothing; **Xác nhận** re-validates and assigns each lab's group through the same `assignCodes()` as manual assignment (history + audit). Max 10,000 rows / 5 MB.
-* **Claim photos** — patients (and labs via API) attach up to `CLAIM_IMAGE_MAX_COUNT` JPEG/PNG/WebP photos (≤ `CLAIM_IMAGE_MAX_MB` each, type checked from file content). Stored privately (`STORAGE_DRIVER=local` → `STORAGE_LOCAL_DIR`, or `s3` → any S3-compatible bucket) and shown as thumbnails in `/admin/claims`.
+* **Traceability model** — products carry *product information* (material, **origin**, care instructions, **suggested** warranty duration). The lab chooses the actual warranty at activation (1–600 months) and can correct it later (audited). Warranty claims are **not** part of the platform: the claim UI and endpoints were removed; the claim/photo service layer and tables (`WarrantyClaim`, object storage) remain dormant and tested in case the feature returns.
+* **Claim photos (dormant)** — object storage (`STORAGE_DRIVER=local|s3`) and content-validated photo handling are implemented in `services/claim-images.ts` but have no HTTP/UI entry point while claims are disabled.
 * **Phone OTP verification** — `OTP_PROVIDER=console` (dev, logs the code), `zalo` / `sms` (stubs to finish in `src/server/otp.ts`), `disabled`. The patient types the registered phone, receives a 6-digit code (5 min, single use, 5 tries), then verifies.
 
 ## Tests
