@@ -10,6 +10,10 @@ export const PERMISSIONS = {
   "brand:manage": ["SUPER_ADMIN"],
   /** Edit the public brand page content (own brands for brand admins). */
   "brand:content": ["SUPER_ADMIN", "BRAND_ADMIN"],
+  /** Edit brand identity — logo, colours, tagline, contacts — of own brands (name, slug, status stay super-admin only). */
+  "brand:identity": ["SUPER_ADMIN", "BRAND_ADMIN"],
+  /** Add / verify / remove / make primary the domains of own brands. */
+  "brand:domains": ["SUPER_ADMIN", "BRAND_ADMIN"],
   "product:read": ["SUPER_ADMIN", "BRAND_ADMIN", "LAB_ADMIN", "LAB_STAFF"],
   "product:manage": ["SUPER_ADMIN", "BRAND_ADMIN"],
   "policy:manage": ["SUPER_ADMIN", "BRAND_ADMIN"],

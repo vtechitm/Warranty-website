@@ -13,6 +13,9 @@ const schema = z.object({
   MOBILE_ACCESS_TOKEN_MINUTES: z.coerce.number().int().positive().default(15),
   MOBILE_REFRESH_TOKEN_DAYS: z.coerce.number().int().positive().default(60),
 
+  /** Public IPv4 of this server, shown in the brand-domain DNS instructions (A record). */
+  PUBLIC_SERVER_IP: z.string().ip({ version: "v4" }).optional(),
+
   /** Object storage for uploads (claim photos): local disk in dev, any S3-compatible service in prod. */
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   STORAGE_LOCAL_DIR: z.string().default("./storage/uploads"),
@@ -39,7 +42,8 @@ let cached: z.infer<typeof schema> | null = null;
 
 export function env() {
   if (!cached) {
-    const parsed = schema.safeParse(process.env);
+    // Docker Compose passes `${VAR:-}` as an empty string; treat empty as "not set" so optional values validate.
+    const parsed = schema.safeParse(Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== "")));
     if (!parsed.success) {
       throw new Error("Invalid environment configuration: " + parsed.error.issues.map((i) => i.path.join(".")).join(", "));
     }

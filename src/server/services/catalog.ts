@@ -4,8 +4,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { AppError, conflict, notFound } from "../errors";
 import { randomToken } from "../crypto";
-import { assertBrandAccess, assertCan, brandScope, type Actor } from "../auth/permissions";
-import type { brandDomainSchema, brandSchema, brandUpdateSchema, policySchema, productSchema, productUpdateSchema } from "../validation";
+import { assertBrandAccess, assertCan, brandScope, can, type Actor } from "../auth/permissions";
+import { BRAND_IDENTITY_FIELDS, type brandDomainOptionsSchema, type brandDomainSchema, type brandSchema, type brandUpdateSchema, type policySchema, type productSchema, type productUpdateSchema } from "../validation";
 import { audit } from "./audit";
 
 function uniqueViolation(e: unknown, msg: string): never {
@@ -46,7 +46,13 @@ export async function createBrand(actor: Actor, input: z.infer<typeof brandSchem
 }
 
 export async function updateBrand(actor: Actor, id: string, input: z.infer<typeof brandUpdateSchema>) {
-  assertCan(actor, "brand:manage");
+  if (!can(actor.role, "brand:manage")) {
+    // Brand admins (e.g. the media team) may only change the identity of their own brands.
+    assertCan(actor, "brand:identity");
+    assertBrandAccess(actor, id);
+    const blocked = Object.keys(input).filter((k) => input[k as keyof typeof input] !== undefined && !(BRAND_IDENTITY_FIELDS as readonly string[]).includes(k));
+    if (blocked.length) throw new AppError("FORBIDDEN", `Chỉ quản trị Vtech được đổi: ${blocked.join(", ")}`);
+  }
   try {
     const brand = await prisma.brand.update({ where: { id }, data: input });
     await audit(actor, { action: "brand.update", entityType: "Brand", entityId: id, metadata: input as Prisma.InputJsonValue });
@@ -56,8 +62,18 @@ export async function updateBrand(actor: Actor, id: string, input: z.infer<typeo
   }
 }
 
+/** Domain management: super admins, and brand admins for their own brands. */
+async function domainForChange(actor: Actor, domainId: string) {
+  assertCan(actor, "brand:domains");
+  const domain = await prisma.brandDomain.findUnique({ where: { id: domainId } });
+  if (!domain) throw notFound();
+  assertBrandAccess(actor, domain.brandId);
+  return domain;
+}
+
 export async function addBrandDomain(actor: Actor, brandId: string, input: z.infer<typeof brandDomainSchema>) {
-  assertCan(actor, "brand:manage");
+  assertCan(actor, "brand:domains");
+  assertBrandAccess(actor, brandId);
   try {
     const domain = await prisma.$transaction(async (tx) => {
       if (input.isPrimary) await tx.brandDomain.updateMany({ where: { brandId }, data: { isPrimary: false } });
@@ -76,9 +92,7 @@ export async function addBrandDomain(actor: Actor, brandId: string, input: z.inf
  * Only verified hostnames are trusted for Host-header brand resolution.
  */
 export async function verifyBrandDomain(actor: Actor, domainId: string) {
-  assertCan(actor, "brand:manage");
-  const existing = await prisma.brandDomain.findUnique({ where: { id: domainId } });
-  if (!existing) throw notFound();
+  const existing = await domainForChange(actor, domainId);
   const host = existing.hostname.split(":")[0];
   let method: "dns" | "manual" = "manual";
   try {
@@ -97,7 +111,7 @@ export async function verifyBrandDomain(actor: Actor, domainId: string) {
 }
 
 export async function removeBrandDomain(actor: Actor, domainId: string) {
-  assertCan(actor, "brand:manage");
+  await domainForChange(actor, domainId);
   const domain = await prisma.brandDomain.delete({ where: { id: domainId } });
   await audit(actor, { action: "brand.domain_remove", entityType: "BrandDomain", entityId: domainId, metadata: { hostname: domain.hostname } });
 }
@@ -109,6 +123,18 @@ export async function resolveBrandByHost(host: string | null | undefined) {
   const domain = await prisma.brandDomain.findUnique({ where: { hostname }, include: { brand: { include: { domains: true } } } });
   if (!domain || !domain.verifiedAt || !domain.brand.isActive || domain.brand.deletedAt) return null;
   return { domain, brand: domain.brand };
+}
+
+/** Make a domain primary (used in QR codes of new batches) and/or redirect it to the primary one. */
+export async function updateBrandDomain(actor: Actor, domainId: string, input: z.infer<typeof brandDomainOptionsSchema>) {
+  const existing = await domainForChange(actor, domainId);
+  if (input.isPrimary && !existing.verifiedAt) throw conflict("Xác minh tên miền trước khi đặt làm tên miền chính");
+  const domain = await prisma.$transaction(async (tx) => {
+    if (input.isPrimary) await tx.brandDomain.updateMany({ where: { brandId: existing.brandId, id: { not: domainId } }, data: { isPrimary: false } });
+    return tx.brandDomain.update({ where: { id: domainId }, data: input });
+  });
+  await audit(actor, { action: "brand.domain_update", entityType: "BrandDomain", entityId: domainId, metadata: { hostname: domain.hostname, ...input } });
+  return domain;
 }
 
 export function primaryDomain(brand: { domains: { hostname: string; isPrimary: boolean; verifiedAt: Date | null }[] }) {

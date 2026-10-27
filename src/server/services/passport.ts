@@ -12,6 +12,7 @@ import { hashAccessCode, type PolicySnapshot } from "./activation";
 import { CODE_PATTERN, normalizeCode } from "./warranty-codes";
 import { computePublicState, computeValidity, type PublicState } from "./validity";
 import { warrantyUrl } from "./qr";
+import { parseLanding } from "../landing-schema";
 
 /** Max failed verification attempts per code in the window (persisted in DB). */
 const VERIFY_MAX_FAILURES = 5;
@@ -54,7 +55,7 @@ const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
 function publicBrand(b: PublicBrand & Record<string, unknown>): PublicBrand {
   return {
-    id: b.id, name: b.name, slug: b.slug, tagline: b.tagline, logoUrl: b.logoUrl,
+    id: b.id, name: b.name, slug: b.slug, tagline: b.tagline, logoUrl: b.logoUrl ?? parseLanding(b.landingConfig).hero.logoUrl,
     primaryColor: b.primaryColor, secondaryColor: b.secondaryColor, accentColor: b.accentColor,
     supportPhone: b.supportPhone, supportEmail: b.supportEmail, supportUrl: b.supportUrl, websiteUrl: b.websiteUrl,
   };

@@ -32,6 +32,7 @@ services:
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
       WEB_SESSION_DAYS: ${WEB_SESSION_DAYS:-7}
       # Claim photos: "local" keeps them in the uploads volume; "s3" uses any S3-compatible bucket.
+      PUBLIC_SERVER_IP: ${PUBLIC_SERVER_IP:-}
       STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_REGION: ${S3_REGION:-us-east-1}

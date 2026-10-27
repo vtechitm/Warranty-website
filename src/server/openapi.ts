@@ -31,7 +31,7 @@ export const API_PATHS: Record<string, Record<string, Op>> = {
   "/brands/{id}/landing": { get: P("Nội dung trang thương hiệu", "Brands", { roles: "SUPER_ADMIN, BRAND_ADMIN" }), put: P("Cập nhật nội dung trang thương hiệu", "Brands", { roles: "SUPER_ADMIN, BRAND_ADMIN" }) },
   "/brands/{id}/assets": { post: P("Tải ảnh cho trang thương hiệu (multipart: file, JPG/PNG/WebP ≤ 5 MB)", "Brands", { roles: "SUPER_ADMIN, BRAND_ADMIN" }) },
   "/brand-assets/{brandId}/{name}": { get: P("Ảnh trang thương hiệu (công khai)", "Brands", { auth: "none", binary: "image/webp" }) },
-  "/brand-domains/{domainId}": { delete: P("Xoá tên miền", "Brands", { roles: "SUPER_ADMIN" }) },
+  "/brand-domains/{domainId}": { patch: P("Đặt tên miền chính / chuyển hướng", "Brands", { roles: "SUPER_ADMIN, BRAND_ADMIN (own brands)" }), delete: P("Xoá tên miền", "Brands", { roles: "SUPER_ADMIN, BRAND_ADMIN (own brands)" }) },
   "/brand-domains/{domainId}/verify": { post: P("Xác minh tên miền", "Brands", { roles: "SUPER_ADMIN" }) },
   "/brand-config": { get: P("Theme thương hiệu theo hostname đã xác minh (công khai)", "Brands", { auth: "none", query: { host: "hostname" } }) },
 

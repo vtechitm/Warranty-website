@@ -34,7 +34,15 @@ export const brandSchema = z.object({
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9-]{2,40}$/, "Slug chỉ gồm chữ thường, số, gạch ngang"),
   codePrefix: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/, "Tiền tố mã gồm 2 chữ cái (VD: OR)"),
   tagline: optionalText(200),
-  logoUrl: z.string().trim().url().max(500).optional().nullable().or(z.literal("").transform(() => null)),
+  /** https URL or an image uploaded for the brand page (/api/v1/brand-assets/…). */
+  logoUrl: z
+    .string()
+    .trim()
+    .max(500)
+    .refine((v) => v === "" || /^https:\/\/\S+$/.test(v) || /^\/api\/v1\/brand-assets\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/.test(v), "Logo phải là link https hoặc ảnh đã tải lên")
+    .optional()
+    .nullable()
+    .transform((v) => (v ? v : null)),
   primaryColor: hexColor.default("#0B1F3A"),
   secondaryColor: hexColor.default("#C9A96E"),
   accentColor: hexColor.default("#F5F5F7"),
@@ -45,6 +53,9 @@ export const brandSchema = z.object({
   isActive: z.boolean().default(true),
 });
 export const brandUpdateSchema = brandSchema.partial().omit({ codePrefix: true });
+/** Fields a brand admin may change on their own brands. */
+export const BRAND_IDENTITY_FIELDS = ["tagline", "logoUrl", "primaryColor", "secondaryColor", "accentColor", "supportPhone", "supportEmail", "supportUrl", "websiteUrl"] as const;
+export const brandDomainOptionsSchema = z.object({ isPrimary: z.boolean().optional(), redirectToPrimary: z.boolean().optional() });
 
 export const brandDomainSchema = z.object({
   hostname: z
