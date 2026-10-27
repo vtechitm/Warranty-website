@@ -2,23 +2,35 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { ShieldCheck, QrCode, Sparkles } from "lucide-react";
 import { LookupForm } from "@/components/lookup-form";
+import type { Metadata } from "next";
 import { resolveBrandByHost } from "@/server/services/catalog";
+import { parseLanding } from "@/server/landing-schema";
+import { BrandLanding } from "@/components/brand-landing";
+import { brandMetadata } from "@/lib/brand-metadata";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const resolved = await resolveBrandByHost((await headers()).get("host"));
+  if (!resolved) return {};
+  const { seo } = parseLanding(resolved.brand.landingConfig);
+  return brandMetadata(resolved.brand.name, seo);
+}
 
 export default async function Home() {
   const host = (await headers()).get("host");
   const resolved = await resolveBrandByHost(host);
-  const brand = resolved?.brand;
-  const primary = brand?.primaryColor ?? "#0B1F3A";
-  const gold = brand?.secondaryColor ?? "#C9A96E";
+  // A verified brand domain shows that brand's page; the platform domain shows the generic Vtech lookup.
+  if (resolved) return <BrandLanding brand={resolved.brand} content={parseLanding(resolved.brand.landingConfig)} />;
+  const primary = "#0B1F3A";
+  const gold = "#C9A96E";
 
   return (
     <main className="min-h-dvh text-white" style={{ background: `radial-gradient(120% 80% at 50% 0%, ${primary} 0%, #050f1f 70%)` }}>
       <div className="mx-auto flex min-h-dvh max-w-5xl flex-col px-5 py-6">
         <header className="flex items-center justify-between">
           <div className="text-lg font-bold tracking-[0.2em]" style={{ color: gold }}>
-            {brand ? brand.name.toUpperCase() : "VTECH DENTAL"}
+            VTECH DENTAL
           </div>
           <Link href="/login" className="rounded-full border border-white/20 px-4 py-1.5 text-sm text-white/80 hover:bg-white/10">
             Đăng nhập labo
@@ -30,7 +42,7 @@ export default async function Home() {
             <Sparkles className="size-3.5" /> Truy xuất nguồn gốc xuất xứ
           </span>
           <h1 className="max-w-3xl text-balance text-4xl font-bold leading-tight sm:text-5xl">
-            {brand?.tagline ?? "Truy xuất nguồn gốc xuất xứ phôi răng sứ chính hãng"}
+            Truy xuất nguồn gốc xuất xứ phôi răng sứ chính hãng
           </h1>
           <p className="mt-5 max-w-xl text-pretty text-white/70">
             Quét mã QR trên thẻ hoặc nhập mã để xác thực phôi chính hãng, labo chế tác và thời hạn bảo hành do labo cung cấp.

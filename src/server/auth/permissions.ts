@@ -8,6 +8,8 @@ import { forbidden } from "../errors";
 export const PERMISSIONS = {
   "brand:read": ["SUPER_ADMIN", "BRAND_ADMIN"],
   "brand:manage": ["SUPER_ADMIN"],
+  /** Edit the public brand page content (own brands for brand admins). */
+  "brand:content": ["SUPER_ADMIN", "BRAND_ADMIN"],
   "product:read": ["SUPER_ADMIN", "BRAND_ADMIN", "LAB_ADMIN", "LAB_STAFF"],
   "product:manage": ["SUPER_ADMIN", "BRAND_ADMIN"],
   "policy:manage": ["SUPER_ADMIN", "BRAND_ADMIN"],

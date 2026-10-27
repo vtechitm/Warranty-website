@@ -1,10 +1,12 @@
-import { Pencil, Plus } from "lucide-react";
+import Link from "next/link";
+import { LayoutTemplate, Pencil, Plus } from "lucide-react";
 import { requireActor } from "@/server/auth/session";
 import { listBrands } from "@/server/services/catalog";
 import { can } from "@/server/auth/permissions";
 import { fmtNumber } from "@/lib/format";
 import { PageHeader } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { FormDialog, type FieldSpec } from "@/components/form-dialog";
 import { DomainManager } from "./domain-manager";
 
@@ -14,10 +16,11 @@ function brandFields(b?: Awaited<ReturnType<typeof listBrands>>[number]): FieldS
   return [
     { name: "name", label: "Tên thương hiệu", required: true, defaultValue: b?.name },
     { name: "slug", label: "Slug", required: true, defaultValue: b?.slug, placeholder: "origin" },
-    ...(b ? [] : [{ name: "codePrefix", label: "Tiền tố mã (2–4 chữ)", required: true, placeholder: "ORG", hint: "Không thể đổi sau khi tạo — in trên mọi mã" } as FieldSpec]),
+    ...(b ? [] : [{ name: "codePrefix", label: "Tiền tố mã (2 chữ cái)", required: true, placeholder: "OR", hint: "Không thể đổi sau khi tạo — in trên mọi mã (VD: OR48291037)" } as FieldSpec]),
     { name: "tagline", label: "Khẩu hiệu", defaultValue: b?.tagline ?? "", full: true },
     { name: "primaryColor", label: "Màu chính", type: "color", defaultValue: b?.primaryColor ?? "#0B1F3A" },
     { name: "secondaryColor", label: "Màu phụ (nhấn)", type: "color", defaultValue: b?.secondaryColor ?? "#C9A96E" },
+    { name: "accentColor", label: "Màu nền sáng (trang thương hiệu)", type: "color", defaultValue: b?.accentColor ?? "#F7F2EA" },
     { name: "logoUrl", label: "URL logo", type: "url", defaultValue: b?.logoUrl ?? "", full: true },
     { name: "supportPhone", label: "Hotline", defaultValue: b?.supportPhone ?? "" },
     { name: "supportEmail", label: "Email hỗ trợ", type: "email", defaultValue: b?.supportEmail ?? "" },
@@ -34,7 +37,7 @@ export default async function BrandsPage() {
     <div>
       <PageHeader
         title="Thương hiệu"
-        description="Mỗi thương hiệu có nhận diện, tên miền, sản phẩm và chính sách riêng trên cùng một backend."
+        description="Mỗi thương hiệu có nhận diện, tên miền, sản phẩm và trang thương hiệu riêng trên cùng một hệ thống."
         actions={manage && <FormDialog trigger={<><Plus /> Thêm thương hiệu</>} title="Thêm thương hiệu" endpoint="/brands" wide fields={brandFields()} />}
       />
       <div className="grid gap-5 lg:grid-cols-2">
@@ -46,7 +49,7 @@ export default async function BrandsPage() {
                 <div className="text-xs text-white/60">{b.tagline ?? "—"}</div>
               </div>
               <div className="text-right">
-                <div className="mono text-sm" style={{ color: b.secondaryColor }}>{b.codePrefix}YY-XXXXXXXX</div>
+                <div className="mono text-sm" style={{ color: b.secondaryColor }}>{b.codePrefix}12345678</div>
                 {!b.isActive && <Badge tone="red">Ngừng</Badge>}
               </div>
             </div>
@@ -57,11 +60,12 @@ export default async function BrandsPage() {
                 <div><div className="text-muted">Hotline</div><div className="font-semibold">{b.supportPhone ?? "—"}</div></div>
               </div>
               <DomainManager brandId={b.id} domains={JSON.parse(JSON.stringify(b.domains))} manage={manage} />
-              {manage && (
-                <div className="flex justify-end">
-                  <FormDialog trigger={<><Pencil /> Sửa</>} triggerVariant="outline" triggerSize="sm" title={`Sửa ${b.name}`} endpoint={`/brands/${b.id}`} method="PATCH" wide keepNulls fields={brandFields(b)} />
-                </div>
-              )}
+              <div className="flex flex-wrap justify-end gap-2">
+                {can(actor.role, "brand:content") && (
+                  <Link href={`/admin/brands/${b.id}/landing`}><Button variant="outline" size="sm"><LayoutTemplate /> Trang thương hiệu</Button></Link>
+                )}
+                {manage && <FormDialog trigger={<><Pencil /> Sửa</>} triggerVariant="outline" triggerSize="sm" title={`Sửa ${b.name}`} endpoint={`/brands/${b.id}`} method="PATCH" wide keepNulls fields={brandFields(b)} />}
+              </div>
             </div>
           </section>
         ))}

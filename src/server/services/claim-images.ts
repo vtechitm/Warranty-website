@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../db";
 import { env } from "../env";
 import { badRequest, notFound } from "../errors";
+import { IMAGE_TYPES, sniffImageType, validateImageFile, type UploadedFile, type ValidatedImage } from "../images";
 import { storage } from "../storage";
 import type { Actor } from "../auth/permissions";
 import { can } from "../auth/permissions";
@@ -16,19 +17,9 @@ import { normalizeCode } from "./warranty-codes";
  * `validateClaimImages` (e.g. ClamAV via clamd INSTREAM) before `storeClaimImages`.
  */
 
-export const CLAIM_IMAGE_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as const;
-type ImageType = keyof typeof CLAIM_IMAGE_TYPES;
-
-export type ValidatedImage = { body: Buffer; contentType: ImageType; ext: string };
-export type UploadedFile = { name: string; type: string; size: number; arrayBuffer(): Promise<ArrayBuffer> };
-
-/** Detects the real image type from its first bytes. */
-export function sniffImageType(b: Buffer): ImageType | null {
-  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
-  if (b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
-  if (b.length >= 12 && b.toString("latin1", 0, 4) === "RIFF" && b.toString("latin1", 8, 12) === "WEBP") return "image/webp";
-  return null;
-}
+export const CLAIM_IMAGE_TYPES = IMAGE_TYPES;
+export { sniffImageType };
+export type { UploadedFile, ValidatedImage };
 
 export function claimImageLimits() {
   return { maxBytes: Math.round(env().CLAIM_IMAGE_MAX_MB * 1024 * 1024), maxCount: env().CLAIM_IMAGE_MAX_COUNT, types: Object.keys(CLAIM_IMAGE_TYPES) };
@@ -38,20 +29,7 @@ export async function validateClaimImages(files: UploadedFile[]): Promise<Valida
   const { maxBytes, maxCount } = claimImageLimits();
   if (files.length > maxCount) throw badRequest(`Tối đa ${maxCount} ảnh cho mỗi yêu cầu`, "TOO_MANY_IMAGES");
   const out: ValidatedImage[] = [];
-  for (const f of files) {
-    if (f.size === 0) throw badRequest(`Ảnh “${f.name}” rỗng`, "INVALID_IMAGE");
-    if (f.size > maxBytes) throw badRequest(`Ảnh “${f.name}” vượt quá ${env().CLAIM_IMAGE_MAX_MB} MB`, "IMAGE_TOO_LARGE");
-    const body = Buffer.from(await f.arrayBuffer());
-    if (body.length > maxBytes) throw badRequest(`Ảnh “${f.name}” vượt quá ${env().CLAIM_IMAGE_MAX_MB} MB`, "IMAGE_TOO_LARGE");
-    const sniffed = sniffImageType(body);
-    if (!sniffed) throw badRequest(`“${f.name}” không phải ảnh JPEG, PNG hoặc WebP`, "UNSUPPORTED_IMAGE");
-    // A declared type that disagrees with the content is rejected (generic / empty types are allowed).
-    const declared = f.type.toLowerCase();
-    if (declared && declared !== "application/octet-stream" && declared !== sniffed && !(declared === "image/jpg" && sniffed === "image/jpeg")) {
-      throw badRequest(`Định dạng ảnh “${f.name}” không khớp nội dung tệp`, "UNSUPPORTED_IMAGE");
-    }
-    out.push({ body, contentType: sniffed, ext: CLAIM_IMAGE_TYPES[sniffed] });
-  }
+  for (const f of files) out.push(await validateImageFile(f, maxBytes));
   return out;
 }
 

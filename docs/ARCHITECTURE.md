@@ -125,6 +125,10 @@ Enforcement: `assertCan()` per operation + scope checks inside every service (`r
 * **Option B – widget**: `<iframe src="https://warranty.vtechdental.vn/embed/lookup?brand=origin" style="width:100%;height:150px;border:0"></iframe>`
 * **Option C – direct links**: link to `https://…/w/{code}` or consume `GET /api/v1/passports/{code}` (public JSON) and `GET /api/v1/brand-config?host=…`.
 
+### Brand pages
+
+`Brand.landingConfig` (JSON) holds the public brand page, validated by `landingSchema` (`src/server/landing-schema.ts`: 11 sections, per-field length limits, max items per list, image URLs restricted to uploaded assets or https). Rendered by `components/brand-landing.tsx` on a verified brand domain's `/` and on `/b/{slug}`; stored JSON is parsed leniently so bad content never breaks the page. Editing needs `brand:content` (SUPER_ADMIN, BRAND_ADMIN for own brands; audited). Assets: `POST /brands/{id}/assets` → object storage `brands/{brandId}/{uuid}.{ext}` → public `GET /brand-assets/{brandId}/{name}` (immutable, 1-year cache, `nosniff` + sandbox CSP). Media brief: `docs/BRIEF-MEDIA-TRANG-THUONG-HIEU.md`.
+
 ## 7. Phases
 
 **Phase 1 (implemented)**: schema & migrations, auth + RBAC, admin dashboard, brands/domains, products, versioned policies, laboratories + invitations + staff, bulk generation (background for large batches), QR PNG/SVG/ZIP, Excel export, printable label PDFs, assignment (next-N / serial range / list), lab activation with FDI multi-tooth chart, pending-installation workflow, public passport (all states), patient verification, certificate PDFs, corrections/suspension/revocation with audit, claims (submit + status workflow), audit log viewer, REST v1 + OpenAPI, tests, Docker.

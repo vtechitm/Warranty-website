@@ -10,6 +10,7 @@ Vtech generates codes + QR cards in advance → labs scan and activate them with
 | --- | --- | --- |
 | Super Admin portal | `/admin` | SUPER_ADMIN, BRAND_ADMIN |
 | Laboratory portal (mobile-first) | `/lab` | LAB_ADMIN, LAB_STAFF |
+| Brand page (origindental.vn style) | brand domain `/`, or `/b/{slug}` | anyone — content edited at `/admin/brands/{id}/landing` |
 | Public passport (QR landing) | `/w/{code}` | anyone; private section after patient verification |
 | Lookup widget for brand sites | `/embed/lookup?brand=origin` | iframe |
 | REST API v1 + OpenAPI | `/api/v1/*`, `/api/v1/openapi.json` | web, brand sites, future apps |
@@ -59,6 +60,7 @@ The seed prints sample QR URLs for every state (active, pending installation, ex
 * **Code format** — 2-letter brand prefix + 8 random digits, e.g. `OR48291037` (easy to read out and type; spaces/hyphens are ignored when typed). Digits are random, not sequential, so one card cannot be used to guess others; the print order is the separate `serial`. Uniqueness is enforced by the database. Old demo codes (`ORG26-K8M4P2X9`) still work.
 
 * **Excel / CSV import of assignments** — `/admin/batches` → **Nhập cấp mã (Excel/CSV)**. Upload a sheet with columns *Mã bảo hành* + *Mã labo* (or `code`,`lab`; no header = column A/B). Every row is validated (format, existence, duplicates, activated/revoked, lab exists/active/authorized for the brand, re-assignment warning) in a preview that writes nothing; **Xác nhận** re-validates and assigns each lab's group through the same `assignCodes()` as manual assignment (history + audit). Max 10,000 rows / 5 MB.
+* **Brand pages** — each brand gets a public page in the style of origindental.vn: banner with the code lookup, verification steps, brand story, origin & certifications, products, warranty info & care, testimonials, partners, FAQ, contact, SEO. Content and images are entered in **Thương hiệu → Trang thương hiệu** (super admin, or brand admin for own brands); empty sections are hidden. Images are uploaded (JPG/PNG/WebP ≤ 5 MB, checked by content) and served publicly with long caching. Media brief: [docs/BRIEF-MEDIA-TRANG-THUONG-HIEU.md](docs/BRIEF-MEDIA-TRANG-THUONG-HIEU.md).
 * **Traceability model** — products carry *product information* (material, **origin**, care instructions, **suggested** warranty duration). The lab chooses the actual warranty at activation (1–600 months) and can correct it later (audited). Warranty claims are **not** part of the platform: the claim UI and endpoints were removed; the claim/photo service layer and tables (`WarrantyClaim`, object storage) remain dormant and tested in case the feature returns.
 * **Claim photos (dormant)** — object storage (`STORAGE_DRIVER=local|s3`) and content-validated photo handling are implemented in `services/claim-images.ts` but have no HTTP/UI entry point while claims are disabled.
 * **Phone OTP verification** — `OTP_PROVIDER=console` (dev, logs the code), `zalo` / `sms` (stubs to finish in `src/server/otp.ts`), `disabled`. The patient types the registered phone, receives a 6-digit code (5 min, single use, 5 tries), then verifies.

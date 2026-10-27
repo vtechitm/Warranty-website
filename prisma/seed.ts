@@ -11,6 +11,8 @@ import { hashPassword } from "../src/server/crypto";
 import type { Actor } from "../src/server/auth/permissions";
 import { createAndGenerateBatch, assignCodes, revokeCode } from "../src/server/services/warranty-codes";
 import { activateWarranty } from "../src/server/services/activation";
+import { landingSchema } from "../src/server/landing-schema";
+import { DEMO_LANDING } from "./demo-landing";
 
 const prisma = new PrismaClient();
 
@@ -44,6 +46,7 @@ async function main() {
   const origin = await prisma.brand.create({
     data: {
       name: "Origin", slug: "origin", codePrefix: "OR", tagline: "Răng sứ cao cấp — chứng nhận chính hãng điện tử",
+      landingConfig: landingSchema.parse(DEMO_LANDING),
       primaryColor: "#0B1F3A", secondaryColor: "#C9A96E", supportPhone: "1900 0000", supportEmail: "baohanh@origin.example", websiteUrl: "https://origin.example",
     },
   });
