@@ -60,10 +60,9 @@ export function computePublicState(
   return "ACTIVE";
 }
 
-/** Lifecycle summary (CREATED / ASSIGNED / ACTIVATED / REVOKED) derived from the separate fields. */
-export function lifecycleStatus(code: { assignmentStatus: string; activationStatus: string; revokedAt: Date | null }) {
+/** Lifecycle summary (CREATED / ACTIVATED / REVOKED). Cards are no longer assigned to labs. */
+export function lifecycleStatus(code: { activationStatus: string; revokedAt: Date | null }) {
   if (code.revokedAt) return "REVOKED" as const;
   if (code.activationStatus === "ACTIVATED") return "ACTIVATED" as const;
-  if (code.assignmentStatus === "ASSIGNED") return "ASSIGNED" as const;
   return "CREATED" as const;
 }

@@ -109,7 +109,7 @@ export async function renderCertificatePdf(data: CertificateData): Promise<Uint8
       ["Phòng khám", data.private.clinicName ?? "—"],
       ["Bác sĩ", data.private.dentistName ?? "—"],
       ["Loại phục hình", data.private.restorationType],
-      ["Vị trí răng (FDI)", data.private.teeth.join(", ")],
+      ["Vị trí răng (FDI)", data.private.teeth.length ? data.private.teeth.join(", ") : "—"],
       ["Ngày lắp", fmtDate(data.private.installationDate)],
     );
   }

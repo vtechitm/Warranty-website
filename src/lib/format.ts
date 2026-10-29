@@ -54,8 +54,8 @@ export const PUBLIC_STATE_LABEL: Record<string, string> = {
 };
 
 export const LIFECYCLE_LABEL: Record<string, string> = {
-  CREATED: "Mới tạo",
-  ASSIGNED: "Đã cấp labo",
+  CREATED: "Chưa dùng",
+  ASSIGNED: "Chưa dùng",
   ACTIVATED: "Đã kích hoạt",
   REVOKED: "Đã thu hồi",
 };

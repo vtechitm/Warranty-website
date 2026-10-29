@@ -3,6 +3,7 @@ import type { Actor } from "@/server/auth/permissions";
 import { hashPassword } from "@/server/crypto";
 import { resetRateLimits } from "@/server/rate-limit";
 import type { ActivationInput } from "@/server/validation";
+import { allocateUnits } from "@/server/services/units";
 import type { Role } from "@prisma/client";
 
 export async function resetDb() {
@@ -37,6 +38,9 @@ export async function seedBasics(opts: { durationMonths?: number; startRule?: "I
   const labB = await prisma.laboratory.create({ data: { code: "LAB-0002", name: "Labo B", brands: { create: [{ brandId: brand.id }] } } });
   const labAUser = await makeUser("LAB_STAFF", { laboratoryId: labA.id });
   const labBUser = await makeUser("LAB_STAFF", { laboratoryId: labB.id });
+  for (const lab of [labA, labB]) {
+    await allocateUnits(admin, { laboratoryId: lab.id, productId: product.id, units: 100, kind: "ALLOCATION", reference: "TEST", note: null });
+  }
   return { admin, brand, product, policy, labA, labB, labAUser, labBUser };
 }
 
@@ -46,6 +50,7 @@ export function activationInput(overrides: Partial<ActivationInput["restoration"
     clinic: { clinicId: null, name: "Nha khoa Sài Gòn", dentistName: "BS. Trần B", phone: null },
     restoration: {
       restorationType: "Cầu răng (Bridge)",
+      units: 4,
       teeth: [11, 12, 21, 22].map((toothNumber) => ({ toothNumber, restorationType: null, shade: "A2", notes: null })),
       completionDate: new Date("2026-10-01T00:00:00Z"),
       installationDate: new Date("2026-10-05T00:00:00Z"),

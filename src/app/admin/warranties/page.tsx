@@ -38,8 +38,7 @@ export default async function AdminWarranties({ searchParams }: { searchParams: 
         </div>
         <Select name="status" defaultValue={sp.status ?? ""}>
           <option value="">Mọi trạng thái</option>
-          <option value="CREATED">Chưa cấp</option>
-          <option value="ASSIGNED">Đã cấp, chưa kích hoạt</option>
+          <option value="CREATED">Chưa dùng</option>
           <option value="ACTIVATED">Đã kích hoạt</option>
           <option value="REVOKED">Đã thu hồi</option>
         </Select>

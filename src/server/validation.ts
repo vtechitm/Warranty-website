@@ -116,30 +116,35 @@ export const batchCreateSchema = z.object({
   notes: optionalText(500),
 });
 
-export const assignSchema = z
-  .object({
-    laboratoryId: z.string().uuid(),
-    batchId: z.string().uuid().optional(),
-    /** Assign the next N unassigned cards of the batch (in print order). */
-    quantity: z.number().int().min(1).max(50_000).optional(),
-    /** Or an inclusive serial range within the batch, matching physical card numbers. */
-    serialFrom: z.number().int().min(1).optional(),
-    serialTo: z.number().int().min(1).optional(),
-    /** Or an explicit list of public codes. */
-    codes: z.array(z.string().trim().toUpperCase().max(40)).max(10_000).optional(),
-    note: optionalText(300),
-  })
-  .refine((v) => (v.codes && v.codes.length > 0) || (v.batchId && (v.quantity || (v.serialFrom && v.serialTo))), {
-    message: "Chọn lô + số lượng / khoảng serial, hoặc danh sách mã",
-  });
+export const unitAllocationSchema = z.object({
+  laboratoryId: z.string().uuid(),
+  productId: z.string().uuid(),
+  /** ALLOCATION: positive (sale). ADJUSTMENT: positive or negative correction. */
+  units: z.number().int().refine((n) => n !== 0, "Số đơn vị phải khác 0").refine((n) => Math.abs(n) <= 1_000_000, "Số đơn vị quá lớn"),
+  kind: z.enum(["ALLOCATION", "ADJUSTMENT"]).default("ALLOCATION"),
+  reference: optionalText(60),
+  note: optionalText(300),
+});
 
-export const assignmentImportSchema = z.object({
+export const unitImportSchema = z.object({
   rows: z
-    .array(z.object({ row: z.number().int().min(1), code: z.string().trim().toUpperCase().max(40), labCode: z.string().trim().toUpperCase().max(40) }))
+    .array(z.object({
+      row: z.number().int().min(1),
+      labCode: z.string().trim().toUpperCase().max(40),
+      sku: z.string().trim().toUpperCase().max(40),
+      brandPrefix: z.string().trim().toUpperCase().max(4).nullable().default(null),
+      units: z.string().trim().max(20),
+      reference: z.string().trim().max(60).nullable().default(null),
+    }))
     .min(1)
-    .max(10_000),
+    .max(2000),
   note: optionalText(300),
   filename: optionalText(200),
+});
+
+export const unitFilterSchema = paginationSchemaBase().extend({
+  laboratoryId: z.string().uuid().optional(),
+  productId: z.string().uuid().optional(),
 });
 
 export const revokeSchema = z.object({ reason: trimmed(500) });
@@ -178,6 +183,13 @@ export const activationSchema = z
     }),
     restoration: z.object({
       restorationType: trimmed(100),
+      /** Tooth units of the case — consumed from the lab's balance for the card's product. */
+      units: z
+        .number({ invalid_type_error: "Nhập số lượng răng", required_error: "Nhập số lượng răng" })
+        .int("Số lượng răng phải là số nguyên")
+        .min(1, "Số lượng răng tối thiểu là 1")
+        .max(32, "Tối đa 32 răng cho một ca"),
+      /** Optional FDI positions; when given, their count must equal `units`. */
       teeth: z
         .array(
           z.object({
@@ -187,8 +199,8 @@ export const activationSchema = z
             notes: optionalText(300),
           }),
         )
-        .min(1, "Chọn ít nhất 1 răng")
-        .max(32),
+        .max(32)
+        .default([]),
       completionDate: dateOnly.optional().nullable(),
       installationDate: dateOnly.optional().nullable(),
       /** Warranty the laboratory provides for this case (months). Pre-filled with Vtech's suggestion for the product. */
@@ -208,6 +220,9 @@ export const activationSchema = z
         ctx.addIssue({ code: "custom", path: ["restoration", "teeth"], message: `Răng ${t.toothNumber} bị trùng` });
       }
       seen.add(t.toothNumber);
+    }
+    if (v.restoration.teeth.length > 0 && v.restoration.teeth.length !== v.restoration.units) {
+      ctx.addIssue({ code: "custom", path: ["restoration", "teeth"], message: `Đã chọn ${v.restoration.teeth.length} vị trí răng trên sơ đồ nhưng số lượng răng là ${v.restoration.units}` });
     }
     if (!v.clinic.clinicId && !v.clinic.name) {
       ctx.addIssue({ code: "custom", path: ["clinic", "name"], message: "Chọn hoặc nhập tên phòng khám" });
@@ -236,6 +251,13 @@ export const claimStatusSchema = z.object({
   status: z.enum(["SUBMITTED", "UNDER_REVIEW", "ADDITIONAL_INFO_REQUIRED", "APPROVED", "REJECTED", "COMPLETED"]),
   note: optionalText(2000),
 });
+
+function paginationSchemaBase() {
+  return z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(200).default(25),
+  });
+}
 
 export const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

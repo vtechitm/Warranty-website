@@ -1,3 +1,4 @@
+import { listUnitBalances } from "./units";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { assertCan, brandScope, requireLab, type Actor } from "../auth/permissions";
@@ -24,9 +25,10 @@ export async function adminDashboard(actor: Actor, range: { from?: Date; to?: Da
   const today = todayVN();
   const claimScope = scope ? { warrantyCode: { brandId: { in: scope } } } : {};
 
-  const [generated, assigned, activated, activatedInRange, revoked, active, expired, pending, claims, openClaims] = await Promise.all([
+  const unitScope = scope ? { product: { brandId: { in: scope } } } : {};
+  const [generated, units, activated, activatedInRange, revoked, active, expired, pending, claims, openClaims] = await Promise.all([
     prisma.warrantyCode.count({ where: brandWhere }),
-    prisma.warrantyCode.count({ where: { ...brandWhere, assignmentStatus: "ASSIGNED" } }),
+    prisma.unitLedgerEntry.groupBy({ by: ["kind"], where: unitScope, _sum: { delta: true } }),
     prisma.warrantyCode.count({ where: { ...brandWhere, activationStatus: "ACTIVATED" } }),
     prisma.warrantyCode.count({ where: { ...brandWhere, activationStatus: "ACTIVATED", activatedAt: dateFilter } }),
     prisma.warrantyCode.count({ where: { ...brandWhere, revokedAt: { not: null } } }),
@@ -67,8 +69,12 @@ export async function adminDashboard(actor: Actor, range: { from?: Date; to?: Da
 
   return {
     kpis: {
-      generated, assigned, activated, activatedInRange, revoked, active, expired, pendingInstallation: pending, claims, openClaims,
-      activationRate: assigned ? activated / assigned : 0,
+      generated, activated, activatedInRange, revoked, active, expired, pendingInstallation: pending, claims, openClaims,
+      activationRate: generated ? activated / generated : 0,
+      units: {
+        sold: units.filter((u) => u.kind === "ALLOCATION" || u.kind === "ADJUSTMENT").reduce((a, u) => a + (u._sum.delta ?? 0), 0),
+        used: -units.filter((u) => u.kind === "ACTIVATION" || u.kind === "REFUND").reduce((a, u) => a + (u._sum.delta ?? 0), 0),
+      },
     },
     monthly: fillMonths(monthly.map((m) => ({ month: m.month, count: Number(m.count) }))),
     byBrand: brands.map((b) => ({ ...b, ...brandRoll.get(b.id)! })).sort((a, b) => b.activated - a.activated),
@@ -80,8 +86,7 @@ export async function adminDashboard(actor: Actor, range: { from?: Date; to?: Da
       .sort((a, b) => b.activated - a.activated),
     topLabs: byLab.map((l) => ({ laboratory: labs.find((x) => x.id === l.laboratoryId)!, count: l._count._all })),
     statusDistribution: {
-      unassigned: Math.max(generated - assigned, 0),
-      assignedNotActivated: Math.max(assigned - activated, 0),
+      unused: Math.max(generated - activated - revoked, 0),
       activated,
       revoked,
     },
@@ -101,9 +106,9 @@ function fillMonths(rows: { month: string; count: number }[]) {
 
 export async function labDashboard(actor: Actor) {
   const labId = requireLab(actor);
-  const [assigned, activated, pending, recent] = await Promise.all([
-    prisma.warrantyCode.count({ where: { assignedLaboratoryId: labId, revokedAt: null } }),
-    prisma.warrantyCode.count({ where: { assignedLaboratoryId: labId, activationStatus: "ACTIVATED", revokedAt: null } }),
+  const [balances, activated, pending, recent] = await Promise.all([
+    listUnitBalances(actor),
+    prisma.restorationCase.count({ where: { laboratoryId: labId, warrantyCode: { revokedAt: null } } }),
     prisma.restorationCase.count({ where: { laboratoryId: labId, installationStatus: "PENDING_CONFIRMATION" } }),
     prisma.warrantyActivation.findMany({
       where: { laboratoryId: labId },
@@ -120,9 +125,9 @@ export async function labDashboard(actor: Actor) {
     select: { warrantyCodeId: true, clinicName: true, unitCount: true, warrantyEndDate: true, installationStatus: true },
   });
   return {
-    assigned,
+    balances,
+    unitsLeft: balances.reduce((a, b) => a + b.balance, 0),
     activated,
-    unactivated: Math.max(assigned - activated, 0),
     pendingInstallation: pending,
     recent: recent.map((r) => ({ ...r, case: cases.find((c) => c.warrantyCodeId === r.warrantyCodeId) ?? null })),
   };

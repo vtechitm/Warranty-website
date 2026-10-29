@@ -9,10 +9,10 @@ import { normalizeCode } from "@/server/services/warranty-codes";
 /** QR image for one code (PNG or SVG). */
 export const GET = api<{ code: string }>({ auth: "required" }, async ({ actor, params, query }) => {
   const { format, size } = query(z.object({ format: z.enum(["png", "svg"]).default("png"), size: z.coerce.number().int().min(100).max(2000).default(600) }));
-  const wc = await prisma.warrantyCode.findUnique({ where: { code: normalizeCode(params.code) }, include: { batch: true } });
+  const wc = await prisma.warrantyCode.findUnique({ where: { code: normalizeCode(params.code) }, include: { batch: true, case: { select: { laboratoryId: true } } } });
   if (!wc) throw notFound();
   if (actor.role === "LAB_ADMIN" || actor.role === "LAB_STAFF") {
-    if (wc.assignedLaboratoryId !== actor.laboratoryId) throw notFound();
+    if (wc.case?.laboratoryId !== actor.laboratoryId) throw notFound();
   } else {
     assertCan(actor, "code:read-all");
     assertBrandAccess(actor, wc.brandId);

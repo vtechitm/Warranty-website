@@ -63,7 +63,7 @@ export function WarrantyDetailView({ d, mode, canCorrect }: { d: WarrantyDetail;
             <Row label="Kích hoạt">{d.activation ? `${fmtDateTimeVN(d.activation.activatedAt)} · ${d.activation.activatedBy}` : "—"}</Row>
             {c?.suspendedAt && <Row label="Tạm ngưng">{`${fmtDateTimeVN(c.suspendedAt)} — ${c.suspendedReason ?? ""}`}</Row>}
             <Row label="Lô / serial">{`${d.batchNumber} · #${d.serial}`}</Row>
-            {mode === "admin" && <Row label="Labo được cấp">{d.assignedLaboratory ? `${d.assignedLaboratory.code} — ${d.assignedLaboratory.name}` : "Chưa cấp"}</Row>}
+            {mode === "admin" && <Row label="Labo kích hoạt">{c ? `${c.laboratory.code} — ${c.laboratory.name}` : "Chưa kích hoạt"}</Row>}
             <Row label="URL QR"><a href={d.url} target="_blank" className="break-all text-navy-700 hover:underline">{d.url}</a></Row>
           </dl>
         </section>
@@ -105,19 +105,6 @@ export function WarrantyDetailView({ d, mode, canCorrect }: { d: WarrantyDetail;
         </section>
       )}
 
-      {mode === "admin" && d.assignments.length > 0 && (
-        <section className="card p-5">
-          <h2 className="mb-3 font-semibold">Lịch sử cấp phát</h2>
-          <ul className="space-y-1 text-sm">
-            {d.assignments.map((a, i) => (
-              <li key={i} className="text-muted">
-                {fmtDateTimeVN(a.assignedAt)} → <span className="font-medium text-ink">{a.laboratory.name}</span>
-                {a.unassignedAt && ` (kết thúc ${fmtDateTimeVN(a.unassignedAt)})`}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }

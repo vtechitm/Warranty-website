@@ -157,11 +157,13 @@ export function PassportView({ passport: p, privateData, options }: { passport: 
                   <PrivFact label="Phòng khám" value={privateData.clinicName ?? "—"} />
                   <PrivFact label="Bác sĩ" value={privateData.dentistName ?? "—"} />
                   <PrivFact label="Ngày lắp" value={fmtDate(privateData.installationDate)} />
-                  <PrivFact label="Vị trí răng" value={privateData.teeth.map((t) => t.toothNumber).join(", ")} />
+                  <PrivFact label="Vị trí răng" value={privateData.teeth.length ? privateData.teeth.map((t) => t.toothNumber).join(", ") : "—"} />
                 </dl>
-                <div className="rounded-2xl bg-white p-3">
-                  <ToothChart selected={privateData.teeth.map((t) => t.toothNumber)} readOnly accent={primary} showPrimary={privateData.teeth.some((t) => t.toothNumber > 50)} />
-                </div>
+                {privateData.teeth.length > 0 && (
+                  <div className="rounded-2xl bg-white p-3">
+                    <ToothChart selected={privateData.teeth.map((t) => t.toothNumber)} readOnly accent={primary} showPrimary={privateData.teeth.some((t) => t.toothNumber > 50)} />
+                  </div>
+                )}
               </div>
             ) : (
               <VerifyPanel code={p.code} gold={gold} otpEnabled={options?.otpEnabled} />

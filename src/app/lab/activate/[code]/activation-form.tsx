@@ -15,6 +15,8 @@ type Checked = {
   url: string;
   brand: { id: string; name: string; primaryColor: string; secondaryColor: string };
   product: { id: string; name: string; sku: string; materialType: string | null; origin: string | null };
+  /** Tooth units the lab still has for this card's product. */
+  units: { available: number };
   /** Vtech's product information; suggestedMonths pre-fills the lab's warranty duration. */
   policy: { version: number; suggestedMonths: number; careInstructions: string | null };
 };
@@ -34,6 +36,8 @@ type Draft = {
   dentistName: string;
   clinicPhone: string;
   restorationType: string;
+  /** Tooth units of the case (required); the chart below is optional and must match when used. */
+  units: string;
   teeth: number[];
   shade: string;
   completionDate: string;
@@ -51,6 +55,7 @@ type Result = {
   url: string;
   accessCode: string;
   unitCount: number;
+  unitsLeft: number;
   teeth: number[];
   installationStatus: string;
   warrantyEndDate: string | null;
@@ -64,7 +69,7 @@ function blankDraft(defaultType: string, suggestedMonths: number): Draft {
   return {
     patientName: "", patientPhone: "", birthYear: "", externalRef: "",
     clinicId: null, clinicName: "", dentistName: "", clinicPhone: "",
-    restorationType: defaultType, teeth: [], shade: "",
+    restorationType: defaultType, units: "", teeth: [], shade: "",
     completionDate: today(), installationDate: "", installationUnknown: false, warrantyMonths: String(suggestedMonths),
     lotNumber: "", notes: "", consent: false,
   };
@@ -113,13 +118,22 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
   }, [d, draftKey, result]);
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((prev) => ({ ...prev, [k]: v }));
-  const toggleTooth = (n: number) => setD((p) => ({ ...p, teeth: p.teeth.includes(n) ? p.teeth.filter((t) => t !== n) : [...p.teeth, n].sort((a, b) => a - b) }));
+  // Picking teeth on the (optional) chart keeps the unit count in step with the selection.
+  const setTeeth = (teeth: number[]) => setD((p) => ({ ...p, teeth, units: teeth.length ? String(teeth.length) : p.units }));
+  const toggleTooth = (n: number) => setTeeth(d.teeth.includes(n) ? d.teeth.filter((t) => t !== n) : [...d.teeth, n].sort((a, b) => a - b));
 
   // The lab's warranty starts on the installation date.
   const pending = d.installationUnknown || !d.installationDate;
   const months = Number(d.warrantyMonths);
   const monthsValid = Number.isInteger(months) && months >= 1 && months <= 600;
-  const ready = d.patientName.trim() && (d.clinicId || d.clinicName.trim()) && d.teeth.length > 0 && monthsValid && d.consent;
+  const units = Number(d.units);
+  const unitsValid = Number.isInteger(units) && units >= 1 && units <= 32;
+  const unitsError = !d.units ? null
+    : !unitsValid ? "Nhập số răng từ 1 đến 32"
+    : units > checked.units.available ? `Labo chỉ còn ${checked.units.available} đơn vị răng cho phôi này`
+    : d.teeth.length > 0 && d.teeth.length !== units ? `Sơ đồ đang chọn ${d.teeth.length} răng — số lượng phải khớp (hoặc bỏ chọn sơ đồ)`
+    : null;
+  const ready = d.patientName.trim() && (d.clinicId || d.clinicName.trim()) && unitsValid && !unitsError && monthsValid && d.consent;
 
   const previewEnd = useMemo(() => {
     const start = d.installationUnknown ? "" : d.installationDate;
@@ -141,6 +155,7 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
           clinic: { clinicId: d.clinicId, name: d.clinicId ? null : d.clinicName, dentistName: d.dentistName || null, phone: d.clinicPhone || null },
           restoration: {
             restorationType: d.restorationType,
+            units,
             teeth: d.teeth.map((toothNumber) => ({ toothNumber, shade: d.shade || null })),
             completionDate: d.completionDate || null,
             installationDate: d.installationUnknown ? null : d.installationDate || null,
@@ -237,20 +252,29 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
           ))}
         </div>
 
-        <div className="mt-5 rounded-2xl border border-line bg-surface/60 p-3">
+        <div className="mt-5 grid gap-3 sm:grid-cols-[200px_1fr] sm:items-start">
+          <Field label="Số lượng răng *" error={unitsError}>
+            <Input value={d.units} onChange={(e) => set("units", e.target.value.replace(/\D/g, "").slice(0, 2))} inputMode="numeric" placeholder="VD: 4" className="text-lg font-semibold" />
+          </Field>
+          <div className={cn("rounded-2xl p-3 text-sm", checked.units.available <= 5 ? "bg-red-50 text-red-800" : "bg-surface")}>
+            Labo còn <b>{checked.units.available}</b> đơn vị răng phôi <b>{checked.product.name}</b>. Kích hoạt sẽ trừ đúng số răng của ca.
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-line bg-surface/60 p-3">
           <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-sm font-semibold">Chọn vị trí răng (FDI)</span>
-            <span className="rounded-full bg-navy-900 px-2.5 py-0.5 text-xs font-bold text-white">{d.teeth.length} đơn vị</span>
+            <span className="text-sm font-semibold">Vị trí răng (FDI) — không bắt buộc</span>
+            <span className="rounded-full bg-navy-900 px-2.5 py-0.5 text-xs font-bold text-white">{d.teeth.length} đã chọn</span>
           </div>
           <ToothChart selected={d.teeth} onToggle={toggleTooth} accent={checked.brand.primaryColor} />
           <div className="mt-3 flex flex-wrap gap-1.5 px-1">
             {QUICK_SELECTIONS.map((q) => (
-              <button key={q.label} type="button" onClick={() => set("teeth", [...new Set([...d.teeth, ...q.teeth])].sort((a, b) => a - b))} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium ring-1 ring-line hover:ring-navy-700">
+              <button key={q.label} type="button" onClick={() => setTeeth([...new Set([...d.teeth, ...q.teeth])].sort((a, b) => a - b))} className="rounded-full bg-white px-2.5 py-1 text-xs font-medium ring-1 ring-line hover:ring-navy-700">
                 + {q.label}
               </button>
             ))}
             {d.teeth.length > 0 && (
-              <button type="button" onClick={() => set("teeth", [])} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50">
+              <button type="button" onClick={() => setTeeth([])} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50">
                 <X className="size-3" /> Bỏ chọn
               </button>
             )}
@@ -324,7 +348,7 @@ export function ActivationForm({ checked, restorationTypes }: { checked: Checked
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <div className="hidden min-w-0 flex-1 text-sm sm:block">
             <div className="truncate font-semibold">{d.patientName || "Chưa nhập bệnh nhân"}</div>
-            <div className="text-xs text-muted">{d.teeth.length} răng · {d.clinicName || "chưa chọn phòng khám"}</div>
+            <div className="text-xs text-muted">{d.units || 0} răng · {d.clinicName || "chưa chọn phòng khám"}</div>
           </div>
           <Button size="xl" className="w-full sm:w-auto sm:min-w-56" disabled={!ready} loading={submitting} onClick={submit}>
             <CheckCircle2 /> KÍCH HOẠT
@@ -417,7 +441,8 @@ function Success({ result, productName }: { result: Result; productName: string 
         <div className="space-y-5 p-6">
           <div>
             <div className="mono text-2xl font-bold text-navy-900">{result.code}</div>
-            <div className="mt-1 text-sm text-muted">{productName} · {result.unitCount} răng ({result.teeth.join(", ")})</div>
+            <div className="mt-1 text-sm text-muted">{productName} · {result.unitCount} răng{result.teeth.length ? ` (${result.teeth.join(", ")})` : ""}</div>
+            <div className="mt-1 text-xs text-muted">Labo còn {result.unitsLeft} đơn vị răng cho phôi này</div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={`/api/v1/warranties/${encodeURIComponent(result.code)}/qr?size=480`} alt={`QR ${result.code}`} className="mx-auto size-44 rounded-xl ring-1 ring-line" />

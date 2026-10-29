@@ -8,6 +8,7 @@ import { audit } from "./audit";
 import { normalizeCode } from "./warranty-codes";
 import { computePublicState, computeValidity, todayVN, warrantyEndDate } from "./validity";
 import { warrantyUrl } from "./qr";
+import { consumeForActivation, insufficientUnits, labBalance, settleCaseUnits } from "./units";
 
 export const CONSENT_VERSION = "2026-10";
 
@@ -62,14 +63,17 @@ export function resolveStartDate(
 
 const reasons = {
   NOT_FOUND: "Mã bảo hành không tồn tại. Vui lòng kiểm tra lại.",
-  NOT_ASSIGNED: "Mã này không được cấp cho labo của bạn.",
   ALREADY_ACTIVATED: "Mã này đã được kích hoạt trước đó.",
   REVOKED: "Mã này đã bị thu hồi. Vui lòng liên hệ Vtech.",
   BRAND_NOT_AUTHORIZED: "Labo chưa được ủy quyền cho thương hiệu này.",
   NO_POLICY: "Sản phẩm chưa có thông tin phôi. Vui lòng liên hệ Vtech.",
 } as const;
 
-/** Step 3 of the lab workflow: verify the code can be activated by this lab. */
+/**
+ * Step 3 of the lab workflow: verify the code can be activated by this lab. Cards are not assigned to labs:
+ * any lab authorized for the card's brand may activate an unused card, as long as it has tooth units left
+ * for the card's product.
+ */
 export async function checkCodeForActivation(actor: Actor, rawCode: string) {
   assertCan(actor, "warranty:activate");
   const labId = requireLab(actor);
@@ -84,18 +88,21 @@ export async function checkCodeForActivation(actor: Actor, rawCode: string) {
   });
   // Codes assigned to another lab are reported exactly like "not assigned to you" (no cross-lab leakage).
   if (!wc) throw new AppError("NOT_FOUND", reasons.NOT_FOUND, undefined, "NOT_FOUND");
-  if (wc.assignedLaboratoryId !== labId) throw new AppError("FORBIDDEN", reasons.NOT_ASSIGNED, undefined, "NOT_ASSIGNED");
   if (wc.revokedAt) throw new AppError("CONFLICT", reasons.REVOKED, undefined, "REVOKED");
   if (wc.activationStatus === "ACTIVATED") throw new AppError("CONFLICT", reasons.ALREADY_ACTIVATED, { code: wc.code }, "ALREADY_ACTIVATED");
   const authorized = await prisma.laboratoryBrand.findUnique({ where: { laboratoryId_brandId: { laboratoryId: labId, brandId: wc.brandId } } });
   if (!authorized) throw new AppError("FORBIDDEN", reasons.BRAND_NOT_AUTHORIZED, undefined, "BRAND_NOT_AUTHORIZED");
   const policy = await prisma.warrantyPolicy.findFirst({ where: { productId: wc.productId, isCurrent: true }, orderBy: { version: "desc" } });
   if (!policy) throw new AppError("CONFLICT", reasons.NO_POLICY, undefined, "NO_POLICY");
+  const available = await labBalance(labId, wc.productId);
+  if (available < 1) throw insufficientUnits(wc.product.name, available, 1);
   return {
     code: wc.code,
     url: warrantyUrl(wc.batch.qrBaseUrl, wc.code),
     brand: wc.brand,
     product: wc.product,
+    /** Tooth units the lab still has for this product. */
+    units: { available },
     /** Vtech's product information; `suggestedMonths` pre-fills the lab's warranty duration. */
     policy: { version: policy.version, suggestedMonths: policy.durationMonths, careInstructions: policy.careInstructions },
   };
@@ -129,7 +136,7 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
       const now = new Date();
       const wc = await tx.warrantyCode.findUniqueOrThrow({ where: { code: checked.code } });
       const claimed = await tx.warrantyCode.updateMany({
-        where: { id: wc.id, activationStatus: "NOT_ACTIVATED", assignedLaboratoryId: labId, revokedAt: null },
+        where: { id: wc.id, activationStatus: "NOT_ACTIVATED", revokedAt: null },
         data: { activationStatus: "ACTIVATED", activatedAt: now },
       });
       if (claimed.count !== 1) throw new AppError("CONFLICT", reasons.ALREADY_ACTIVATED, { code: wc.code }, "ALREADY_ACTIVATED");
@@ -195,7 +202,7 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
           dentistName: input.clinic.dentistName,
           clinicPhone: input.clinic.phone,
           restorationType: input.restoration.restorationType,
-          unitCount: input.restoration.teeth.length,
+          unitCount: input.restoration.units,
           completionDate: input.restoration.completionDate ?? null,
           installationDate: input.restoration.installationDate ?? null,
           installationStatus: start ? "CONFIRMED" : "PENDING_CONFIRMATION",
@@ -223,6 +230,9 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
         },
       });
 
+      // Tooth units: fails the whole activation (nothing is saved) when the lab has too few left.
+      await consumeForActivation(tx, { laboratoryId: labId, productId: wc.productId, caseId: rc.id, units: rc.unitCount, actorId: actor.userId, code: wc.code });
+
       await tx.warrantyActivation.create({
         data: {
           warrantyCodeId: wc.id, restorationCaseId: rc.id, laboratoryId: labId, activatedById: actor.userId,
@@ -232,7 +242,7 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
 
       await audit(actor, {
         action: "warranty.activate", entityType: "WarrantyCode", entityId: wc.id, laboratoryId: labId,
-        metadata: { code: wc.code, caseId: rc.id, units: rc.unitCount, policyVersion: policy.version, warrantyMonths: months, suggestedMonths: policy.durationMonths, installationStatus: rc.installationStatus },
+        metadata: { code: wc.code, caseId: rc.id, units: rc.unitCount, product: checked.product.sku, policyVersion: policy.version, warrantyMonths: months, suggestedMonths: policy.durationMonths, installationStatus: rc.installationStatus },
       }, tx);
 
       return {
@@ -244,6 +254,7 @@ export async function activateWarranty(actor: Actor, rawCode: string, input: Act
         brand: checked.brand,
         unitCount: rc.unitCount,
         teeth: input.restoration.teeth.map((t) => t.toothNumber).sort((a, b) => a - b),
+        unitsLeft: (await tx.unitBalance.findUniqueOrThrow({ where: { laboratoryId_productId: { laboratoryId: labId, productId: wc.productId } } })).balance,
         installationStatus: rc.installationStatus,
         warrantyStartDate: rc.warrantyStartDate,
         warrantyEndDate: rc.warrantyEndDate,
@@ -268,9 +279,7 @@ async function loadCase(code: string) {
       brand: true,
       product: true,
       batch: { select: { batchNumber: true, qrBaseUrl: true } },
-      assignedLaboratory: { select: { id: true, name: true, code: true } },
       activation: { include: { activatedBy: { select: { name: true, email: true } } } },
-      assignments: { orderBy: { assignedAt: "desc" }, include: { laboratory: { select: { name: true, code: true } } } },
       case: {
         include: {
           patient: true,
@@ -290,7 +299,7 @@ export async function getWarrantyDetail(actor: Actor, code: string) {
   const wc = await loadCase(code);
   const isLab = actor.role === "LAB_ADMIN" || actor.role === "LAB_STAFF";
   if (isLab) {
-    if (wc.assignedLaboratoryId !== actor.laboratoryId && wc.case?.laboratoryId !== actor.laboratoryId) throw notFound("Mã bảo hành không tồn tại");
+    if (wc.case?.laboratoryId !== actor.laboratoryId) throw notFound("Mã bảo hành không tồn tại");
   } else if (actor.role === "CLINIC_USER") {
     if (!wc.case || !actor.clinicId || wc.case.clinicId !== actor.clinicId) throw notFound("Mã bảo hành không tồn tại");
   } else {
@@ -308,12 +317,9 @@ export async function getWarrantyDetail(actor: Actor, code: string) {
     batchNumber: wc.batch.batchNumber,
     brand: { id: wc.brand.id, name: wc.brand.name, primaryColor: wc.brand.primaryColor, secondaryColor: wc.brand.secondaryColor },
     product: { id: wc.product.id, name: wc.product.name, sku: wc.product.sku },
-    assignmentStatus: wc.assignmentStatus,
     activationStatus: wc.activationStatus,
     revokedAt: wc.revokedAt,
     revokedReason: wc.revokedReason,
-    assignedLaboratory: isLab ? null : wc.assignedLaboratory,
-    assignments: isLab ? [] : wc.assignments.map((a) => ({ laboratory: a.laboratory, assignedAt: a.assignedAt, unassignedAt: a.unassignedAt })),
     publicState: computePublicState(wc, c),
     validity: computeValidity(c),
     activation: wc.activation ? { activatedAt: wc.activation.activatedAt, activatedBy: wc.activation.activatedBy.name, policyVersion: wc.activation.policyVersion } : null,
@@ -383,13 +389,13 @@ export async function confirmInstallation(actor: Actor, code: string, installati
 export async function correctWarranty(
   actor: Actor,
   code: string,
-  patch: { patientName?: string; patientPhone?: string | null; clinicName?: string | null; dentistName?: string | null; notes?: string | null; installationDate?: Date | null; warrantyMonths?: number; reason: string },
+  patch: { patientName?: string; patientPhone?: string | null; clinicName?: string | null; dentistName?: string | null; notes?: string | null; installationDate?: Date | null; warrantyMonths?: number; units?: number; reason: string },
 ) {
   assertCan(actor, "warranty:correct");
   const { wc, rc } = await caseForChange(actor, code);
   const snapshot = rc.policySnapshot as unknown as PolicySnapshot;
   return prisma.$transaction(async (tx) => {
-    const before = { clinicName: rc.clinicName, dentistName: rc.dentistName, notes: rc.notes, installationDate: rc.installationDate, warrantyMonths: snapshot.durationMonths, warrantyEndDate: rc.warrantyEndDate };
+    const before = { unitCount: rc.unitCount, clinicName: rc.clinicName, dentistName: rc.dentistName, notes: rc.notes, installationDate: rc.installationDate, warrantyMonths: snapshot.durationMonths, warrantyEndDate: rc.warrantyEndDate };
     // Duration correction: stored in the case's snapshot (which drives every later date calculation).
     const months = patch.warrantyMonths ?? snapshot.durationMonths;
     if (patch.warrantyMonths !== undefined && patch.warrantyMonths !== snapshot.durationMonths) {
@@ -400,6 +406,13 @@ export async function correctWarranty(
       });
     }
     const caseData: Prisma.RestorationCaseUpdateInput = {};
+    if (patch.units !== undefined && patch.units !== rc.unitCount) {
+      // Unit count correction: the difference is consumed from / refunded to the lab's balance.
+      const charted = await tx.restorationUnit.count({ where: { restorationCaseId: rc.id } });
+      if (charted > 0 && charted !== patch.units) throw new AppError("VALIDATION_ERROR", `Hồ sơ đã chọn ${charted} vị trí răng trên sơ đồ — số lượng răng phải khớp`);
+      await settleCaseUnits(tx, { caseId: rc.id, laboratoryId: rc.laboratoryId, productId: rc.productId }, patch.units, actor.userId, `Sửa số răng ${wc.code}: ${rc.unitCount} → ${patch.units}`);
+      caseData.unitCount = patch.units;
+    }
     if (patch.clinicName !== undefined) caseData.clinicName = patch.clinicName;
     if (patch.dentistName !== undefined) caseData.dentistName = patch.dentistName;
     if (patch.notes !== undefined) caseData.notes = patch.notes;

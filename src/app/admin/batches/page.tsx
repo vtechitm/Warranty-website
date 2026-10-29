@@ -39,7 +39,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
         actions={
           can(actor.role, "batch:generate") && (
             <div className="flex flex-wrap gap-2">
-              <Link href="/admin/batches/import"><Button variant="outline"><FileUp /> Nhập cấp mã (Excel/CSV)</Button></Link>
+              <Link href="/admin/units"><Button variant="outline"><FileUp /> Đơn vị răng của labo</Button></Link>
               <FormDialog
                 trigger={<><Plus /> Sinh lô mã mới</>}
                 title="Sinh lô mã bảo hành"
@@ -78,7 +78,7 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
           <div className="overflow-x-auto">
             <table className="table-base">
               <thead>
-                <tr><th>Số lô</th><th>Sản phẩm</th><th className="text-right">Tổng</th><th className="text-right">Đã cấp</th><th className="text-right">Đã kích hoạt</th><th className="text-right">Chưa cấp</th><th>Tiến độ</th><th>Trạng thái</th><th>Ngày tạo</th></tr>
+                <tr><th>Số lô</th><th>Sản phẩm</th><th className="text-right">Tổng</th><th className="text-right">Đã kích hoạt</th><th className="text-right">Chưa dùng</th><th>Tiến độ</th><th>Trạng thái</th><th>Ngày tạo</th></tr>
               </thead>
               <tbody>
                 {items.map((b) => {
@@ -88,9 +88,8 @@ export default async function BatchesPage({ searchParams }: { searchParams: Prom
                       <td><Link href={`/admin/batches/${b.id}`} className="font-semibold text-navy-800 hover:underline">{b.batchNumber}</Link></td>
                       <td><div>{b.product.name}</div><div className="text-xs text-muted">{b.brand.name}</div></td>
                       <td className="text-right font-semibold">{fmtNumber(b.quantity)}</td>
-                      <td className="text-right">{fmtNumber(b.stats.assigned)}</td>
                       <td className="text-right">{fmtNumber(b.stats.activated)}</td>
-                      <td className="text-right">{fmtNumber(b.stats.unassigned)}</td>
+                      <td className="text-right">{fmtNumber(b.stats.unused)}</td>
                       <td className="min-w-28"><div className="h-2 rounded-full bg-surface"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${rate * 100}%` }} /></div></td>
                       <td><StatusBadge status={b.status} label={{ PENDING: "Chờ", GENERATING: `Đang sinh ${b.generatedCount}/${b.quantity}`, COMPLETED: "Hoàn tất", FAILED: "Lỗi" }[b.status]} /></td>
                       <td className="whitespace-nowrap text-sm text-muted">{fmtDateTimeVN(b.createdAt)}</td>

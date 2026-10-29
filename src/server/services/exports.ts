@@ -65,15 +65,15 @@ async function buildBatchSheet(wb: ExcelJS.Workbook, batch: BatchExport["batch"]
     { header: "Thương hiệu", key: "brand", width: 16 },
     { header: "Sản phẩm", key: "product", width: 26 },
     { header: "Trạng thái", key: "status", width: 14 },
-    { header: "Labo", key: "lab", width: 28 },
-    { header: "Ngày cấp", key: "assignedAt", width: 18 },
+    { header: "Labo kích hoạt", key: "lab", width: 28 },
+    { header: "Số răng", key: "units", width: 9 },
     { header: "Ngày kích hoạt", key: "activatedAt", width: 18 },
   ];
   for (const c of codes) {
     ws.addRow({
       serial: c.serial, code: c.code, qr: withImages ? "" : "Xem gói in ấn", url: c.url, file: qrFileName(c.serial, c.code, "png"), brand: batch.brand.name, product: batch.product.name,
-      status: LIFECYCLE_LABEL[c.status], lab: c.assignedLaboratory ? `${c.assignedLaboratory.code} — ${c.assignedLaboratory.name}` : "",
-      assignedAt: c.assignedAt ? fmtDateTimeVN(c.assignedAt) : "", activatedAt: c.activatedAt ? fmtDateTimeVN(c.activatedAt) : "",
+      status: LIFECYCLE_LABEL[c.status], lab: c.laboratory ? `${c.laboratory.code} — ${c.laboratory.name}` : "",
+      units: c.case?.unitCount ?? "", activatedAt: c.activatedAt ? fmtDateTimeVN(c.activatedAt) : "",
     });
   }
   styleHeader(ws);
@@ -203,7 +203,7 @@ export async function exportWarrantiesXlsx(actor: Actor, params: z.infer<typeof 
   for (const c of rows) {
     ws.addRow({
       code: c.code, qr: rows.length <= XLSX_QR_IMAGE_LIMIT ? "" : "Xem gói in ấn của lô", url: warrantyUrl(c.batch.qrBaseUrl, c.code), batch: c.batch.batchNumber, brand: c.brand.name, product: c.product.name, status: LIFECYCLE_LABEL[c.status],
-      lab: c.assignedLaboratory?.name ?? "", clinic: c.case?.clinicName ?? "", patient: c.case?.patient.fullName ?? "",
+      lab: c.case?.laboratory.name ?? "", clinic: c.case?.clinicName ?? "", patient: c.case?.patient.fullName ?? "",
       units: c.case?.unitCount ?? "", activatedAt: c.activatedAt ? fmtDateTimeVN(c.activatedAt) : "", end: c.case?.warrantyEndDate ? fmtDate(c.case.warrantyEndDate) : "",
     });
   }

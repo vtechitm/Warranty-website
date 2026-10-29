@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, Building2, ClipboardCheck, FileClock, LayoutDashboard, Package, ShieldCheck, Tags, Users } from "lucide-react";
+import { Boxes, Layers, Building2, ClipboardCheck, FileClock, LayoutDashboard, Package, ShieldCheck, Tags, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const ITEMS = [
   { href: "/admin", label: "Tổng quan", icon: LayoutDashboard, superOnly: false },
   { href: "/admin/batches", label: "Lô mã QR", icon: Boxes, superOnly: false },
   { href: "/admin/warranties", label: "Mã bảo hành", icon: ShieldCheck, superOnly: false },
+  { href: "/admin/units", label: "Đơn vị răng", icon: Layers, superOnly: true },
   { href: "/admin/laboratories", label: "Labo", icon: Building2, superOnly: false },
   { href: "/admin/brands", label: "Thương hiệu", icon: Tags, superOnly: false },
   { href: "/admin/products", label: "Sản phẩm (phôi)", icon: Package, superOnly: false },

@@ -17,10 +17,9 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
   const maxMonth = Math.max(1, ...d.monthly.map((m) => m.count));
   const maxLab = Math.max(1, ...d.topLabs.map((l) => l.count));
   const dist = d.statusDistribution;
-  const distTotal = Math.max(1, dist.unassigned + dist.assignedNotActivated + dist.activated + dist.revoked);
+  const distTotal = Math.max(1, dist.unused + dist.activated + dist.revoked);
   const segments = [
-    { label: "Chưa cấp", value: dist.unassigned, color: "#cbd5e1" },
-    { label: "Đã cấp, chưa kích hoạt", value: dist.assignedNotActivated, color: "#60a5fa" },
+    { label: "Thẻ chưa dùng", value: dist.unused, color: "#cbd5e1" },
     { label: "Đã kích hoạt", value: dist.activated, color: "#0b1f3a" },
     { label: "Đã thu hồi", value: dist.revoked, color: "#ef4444" },
   ];
@@ -40,10 +39,10 @@ export default async function AdminDashboard({ searchParams }: { searchParams: P
       />
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Kpi label="Mã đã sinh" value={fmtNumber(k.generated)} icon={<Boxes />} />
-        <Kpi label="Đã cấp cho labo" value={fmtNumber(k.assigned)} icon={<Truck />} />
+        <Kpi label="Thẻ đã sinh" value={fmtNumber(k.generated)} icon={<Boxes />} />
+        <Kpi label="Đơn vị răng đã bán" value={fmtNumber(k.units.sold)} icon={<Truck />} sub={`đã dùng ${fmtNumber(k.units.used)} · còn ${fmtNumber(k.units.sold - k.units.used)}`} />
         <Kpi label="Đã kích hoạt" value={fmtNumber(k.activated)} icon={<CheckCircle2 />} sub={sp.from || sp.to ? `${fmtNumber(k.activatedInRange)} trong khoảng lọc` : undefined} />
-        <Kpi label="Tỷ lệ kích hoạt" value={fmtPercent(k.activationRate)} icon={<Percent />} sub="trên số mã đã cấp" />
+        <Kpi label="Tỷ lệ kích hoạt" value={fmtPercent(k.activationRate)} icon={<Percent />} sub="trên số thẻ đã sinh" />
         <Kpi label="Bảo hành còn hiệu lực" value={fmtNumber(k.active)} icon={<ShieldCheck />} />
         <Kpi label="Đã hết hạn" value={fmtNumber(k.expired)} icon={<Clock />} />
         <Kpi label="Chờ xác nhận ngày lắp" value={fmtNumber(k.pendingInstallation)} icon={<Hourglass />} />

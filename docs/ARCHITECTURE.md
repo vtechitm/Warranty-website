@@ -2,6 +2,8 @@
 
 Truy xuất nguồn gốc xuất xứ phôi răng sứ chính hãng.
 
+> **v4 — tooth units**: cards (codes) are printed in bulk and handed out without being assigned to a laboratory. Labs buy blanks; Vtech records each sale as tooth units per product (`UnitBalance`, `UnitLedgerEntry`). Any lab authorized for the card's brand may activate an unused card if it still has at least the case's number of teeth for the card's product; the activation consumes them atomically. Revocation refunds, reinstatement re-consumes, unit-count corrections settle the difference.
+>
 > **v3 business model**: Vtech supplies blanks (phôi) and certifies their **origin**. The **warranty belongs to the laboratory**: the lab enters the installation date and the warranty duration at activation (pre-filled with Vtech's suggested duration for the product). Vtech-defined warranty terms (conditions/exclusions/benefits) no longer apply, and warranty claims are not handled by the platform.
 
 ## 1. Business model (confirmed V2 rules)
@@ -11,8 +13,8 @@ Truy xuất nguồn gốc xuất xứ phôi răng sứ chính hãng.
 | One QR = one restoration case; a case may contain many teeth | `WarrantyCode 1—1 RestorationCase 1—n RestorationUnit`, `RestorationCase.warrantyCodeId UNIQUE`, `RestorationUnit (caseId, toothNumber) UNIQUE` |
 | Codes & QR URLs exist before any patient data | `WarrantyBatch` → `WarrantyCode` generated up-front; patient rows are created only at activation |
 | QR URL never changes | URL = `batch.qrBaseUrl + /w/ + code`; `qrBaseUrl` is frozen on the batch at generation. Activation never touches `code` |
-| Only Vtech-issued lab accounts can activate | `warranty:activate` permission (LAB_ADMIN, LAB_STAFF) + `assignedLaboratoryId = actor.laboratoryId` + lab authorized for the brand |
-| A code cannot be activated twice | Conditional `UPDATE … WHERE activationStatus='NOT_ACTIVATED' AND assignedLaboratoryId=… AND revokedAt IS NULL` inside a transaction **and** `WarrantyActivation.warrantyCodeId UNIQUE` |
+| Only Vtech-issued lab accounts can activate, within the units they bought | `warranty:activate` permission (LAB_ADMIN, LAB_STAFF) + lab authorized for the card's brand + `UnitBalance(lab, card product) >= units` (conditional UPDATE in the activation transaction; `CHECK balance >= 0`). Cards are not assigned to labs (legacy `assignedLaboratoryId` / `WarrantyAssignment` are no longer written) |
+| A code cannot be activated twice | Conditional `UPDATE … WHERE activationStatus='NOT_ACTIVATED' AND revokedAt IS NULL` inside a transaction **and** `WarrantyActivation.warrantyCodeId UNIQUE` |
 | Product is bound to the code | `WarrantyCode.productId` set at generation; the activation payload has no product field |
 | Versioned product information; lab-provided warranty | `WarrantyPolicy (productId, version) UNIQUE` now holds Vtech's *product information*: **suggested** warranty duration + care instructions (UI: "Thông tin phôi"). Activation requires `restoration.warrantyMonths` (1–600) from the lab; the case's `policySnapshot` stores `durationMonths` = lab value, `provider: "LABORATORY"`, `suggestedMonths`, start rule = installation date, and no Vtech terms. Labs (LAB_ADMIN) can correct the duration later via `/warranties/{code}/correct` (audited, end date recomputed) |
 | Revoked codes never look valid | `revokedAt` overrides every public state → `REVOKED` warning page |
@@ -87,7 +89,9 @@ Key indexes: `WarrantyCode(code) UNIQUE`, `(batchId, serial) UNIQUE`, `(assigned
 | Manage products & publish policies | ✅ | own brands | | | | |
 | Manage laboratories | ✅ | read (own brands) | | | | |
 | Manage lab staff | ✅ | | own lab | | | |
-| Generate batches / assign / revoke | ✅ | read own brands | | | | |
+| Generate batches / revoke | ✅ | read own brands | | | | |
+| Sell / adjust tooth units | ✅ | | | | | |
+| See tooth-unit balances & history | all | | own lab | own lab | | |
 | Search codes | all | own brands | own lab | own lab | | |
 | Activate warranty | | | own lab codes | own lab codes | | |
 | View patient identity | ✅ | ✗ | own lab | own lab | ✗ | after verification |

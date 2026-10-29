@@ -62,6 +62,15 @@ enum WarrantyStartRule {
   COMPLETION_DATE
 }
 
+/// Tooth-unit ledger entry kinds. Vtech sells blanks to labs as tooth units per product;
+/// each activation consumes the case's unit count.
+enum UnitEntryKind {
+  ALLOCATION // units sold / granted by Vtech (+)
+  ACTIVATION // consumed by activating a card (−)
+  REFUND // returned: card revoked, or unit count corrected down (+)
+  ADJUSTMENT // manual correction by Vtech (±)
+}
+
 enum InstallationStatus {
   CONFIRMED
   PENDING_CONFIRMATION
@@ -118,17 +127,17 @@ model User {
   updatedAt        DateTime   @updatedAt
   deletedAt        DateTime?
 
-  laboratory  Laboratory?       @relation(fields: [laboratoryId], references: [id])
-  clinic      Clinic?           @relation(fields: [clinicId], references: [id])
-  brands      UserBrand[]
-  sessions    DeviceSession[]
-  invitations UserInvitation[]
-  patient     PatientAccount?
+  laboratory             Laboratory?             @relation(fields: [laboratoryId], references: [id])
+  clinic                 Clinic?                 @relation(fields: [clinicId], references: [id])
+  brands                 UserBrand[]
+  sessions               DeviceSession[]
+  invitations            UserInvitation[]
+  patient                PatientAccount?
   notificationPreference NotificationPreference?
 
-  activations     WarrantyActivation[]
-  createdBatches  WarrantyBatch[]
-  auditLogs       AuditLog[]
+  activations    WarrantyActivation[]
+  createdBatches WarrantyBatch[]
+  auditLogs      AuditLog[]
 
   @@index([laboratoryId])
   @@index([role])
@@ -156,19 +165,19 @@ model UserInvitation {
 
 /// Web cookie sessions and mobile refresh-token sessions (rotation with reuse detection).
 model DeviceSession {
-  id               String      @id @default(uuid()) @db.Uuid
-  userId           String      @db.Uuid
-  kind             SessionKind
-  tokenHash        String      @unique
-  previousTokenHash String?    @unique
-  deviceName       String?
-  userAgent        String?
-  ip               String?
-  expiresAt        DateTime
-  lastUsedAt       DateTime    @default(now())
-  revokedAt        DateTime?
-  createdAt        DateTime    @default(now())
-  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String      @id @default(uuid()) @db.Uuid
+  userId            String      @db.Uuid
+  kind              SessionKind
+  tokenHash         String      @unique
+  previousTokenHash String?     @unique
+  deviceName        String?
+  userAgent         String?
+  ip                String?
+  expiresAt         DateTime
+  lastUsedAt        DateTime    @default(now())
+  revokedAt         DateTime?
+  createdAt         DateTime    @default(now())
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -188,24 +197,24 @@ model NotificationPreference {
 // ─────────────────────────────── Brands & catalog ───────────────────────────────
 
 model Brand {
-  id             String   @id @default(uuid()) @db.Uuid
-  slug           String   @unique
+  id             String    @id @default(uuid()) @db.Uuid
+  slug           String    @unique
   name           String
   /// 3-letter prefix used in public warranty codes, e.g. ORG -> ORG26-K8M4P2X9
-  codePrefix     String   @unique
+  codePrefix     String    @unique
   tagline        String?
   logoUrl        String?
-  primaryColor   String   @default("#0B1F3A")
-  secondaryColor String   @default("#C9A96E")
-  accentColor    String   @default("#F5F5F7")
+  primaryColor   String    @default("#0B1F3A")
+  secondaryColor String    @default("#C9A96E")
+  accentColor    String    @default("#F5F5F7")
   supportPhone   String?
   supportEmail   String?
   supportUrl     String?
   websiteUrl     String?
-  landingConfig  Json     @default("{}")
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  landingConfig  Json      @default("{}")
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
   domains      BrandDomain[]
@@ -249,13 +258,15 @@ model Product {
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
 
-  brand    Brand            @relation(fields: [brandId], references: [id])
-  policies WarrantyPolicy[]
-  lots     MaterialLot[]
-  batches  WarrantyBatch[]
-  codes    WarrantyCode[]
-  cases    RestorationCase[]
-  units    RestorationUnit[]
+  brand        Brand             @relation(fields: [brandId], references: [id])
+  policies     WarrantyPolicy[]
+  lots         MaterialLot[]
+  batches      WarrantyBatch[]
+  codes        WarrantyCode[]
+  cases        RestorationCase[]
+  units        RestorationUnit[]
+  unitBalances UnitBalance[]
+  unitEntries  UnitLedgerEntry[]
 
   @@unique([brandId, sku])
   @@index([brandId])
@@ -287,13 +298,13 @@ model WarrantyPolicy {
 }
 
 model MaterialLot {
-  id             String    @id @default(uuid()) @db.Uuid
-  productId      String    @db.Uuid
+  id             String            @id @default(uuid()) @db.Uuid
+  productId      String            @db.Uuid
   lotNumber      String
   manufacturedAt DateTime?
   expiresAt      DateTime?
-  createdAt      DateTime  @default(now())
-  product        Product   @relation(fields: [productId], references: [id])
+  createdAt      DateTime          @default(now())
+  product        Product           @relation(fields: [productId], references: [id])
   units          RestorationUnit[]
 
   @@unique([productId, lotNumber])
@@ -327,14 +338,16 @@ model Laboratory {
   updatedAt     DateTime         @updatedAt
   deletedAt     DateTime?
 
-  users       User[]
-  brands      LaboratoryBrand[]
-  codes       WarrantyCode[]
-  assignments WarrantyAssignment[]
-  clinics     Clinic[]
-  patients    Patient[]
-  cases       RestorationCase[]
-  activations WarrantyActivation[]
+  users        User[]
+  brands       LaboratoryBrand[]
+  codes        WarrantyCode[]
+  assignments  WarrantyAssignment[]
+  clinics      Clinic[]
+  patients     Patient[]
+  cases        RestorationCase[]
+  activations  WarrantyActivation[]
+  unitBalances UnitBalance[]
+  unitEntries  UnitLedgerEntry[]
 }
 
 model LaboratoryBrand {
@@ -413,10 +426,10 @@ model WarrantyCode {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  brand              Brand                @relation(fields: [brandId], references: [id])
-  product            Product              @relation(fields: [productId], references: [id])
-  batch              WarrantyBatch        @relation(fields: [batchId], references: [id])
-  assignedLaboratory Laboratory?          @relation(fields: [assignedLaboratoryId], references: [id])
+  brand              Brand                       @relation(fields: [brandId], references: [id])
+  product            Product                     @relation(fields: [productId], references: [id])
+  batch              WarrantyBatch               @relation(fields: [batchId], references: [id])
+  assignedLaboratory Laboratory?                 @relation(fields: [assignedLaboratoryId], references: [id])
   assignments        WarrantyAssignment[]
   case               RestorationCase?
   activation         WarrantyActivation?
@@ -433,11 +446,11 @@ model WarrantyCode {
 
 /// Assignment history (codes can be re-assigned before activation).
 model WarrantyAssignment {
-  id             String     @id @default(uuid()) @db.Uuid
-  warrantyCodeId String     @db.Uuid
-  laboratoryId   String     @db.Uuid
-  assignedById   String?    @db.Uuid
-  assignedAt     DateTime   @default(now())
+  id             String    @id @default(uuid()) @db.Uuid
+  warrantyCodeId String    @db.Uuid
+  laboratoryId   String    @db.Uuid
+  assignedById   String?   @db.Uuid
+  assignedAt     DateTime  @default(now())
   unassignedAt   DateTime?
   note           String?
 
@@ -548,16 +561,16 @@ model RestorationCase {
 }
 
 model RestorationUnit {
-  id                String          @id @default(uuid()) @db.Uuid
-  restorationCaseId String          @db.Uuid
+  id                String   @id @default(uuid()) @db.Uuid
+  restorationCaseId String   @db.Uuid
   /// FDI two-digit tooth number (11–48, 51–85 for primary teeth).
   toothNumber       Int
   restorationType   String
-  productId         String          @db.Uuid
-  materialLotId     String?         @db.Uuid
+  productId         String   @db.Uuid
+  materialLotId     String?  @db.Uuid
   shade             String?
   notes             String?
-  createdAt         DateTime        @default(now())
+  createdAt         DateTime @default(now())
 
   restorationCase RestorationCase @relation(fields: [restorationCaseId], references: [id], onDelete: Cascade)
   product         Product         @relation(fields: [productId], references: [id])
@@ -583,6 +596,40 @@ model WarrantyActivation {
 
   @@index([laboratoryId, activatedAt])
   @@index([activatedAt])
+}
+
+/// Remaining tooth units of a laboratory for one product. Decremented with a conditional UPDATE
+/// (balance >= n) inside the activation transaction, so concurrent activations can never overspend.
+model UnitBalance {
+  laboratoryId String     @db.Uuid
+  productId    String     @db.Uuid
+  balance      Int        @default(0)
+  updatedAt    DateTime   @updatedAt
+  laboratory   Laboratory @relation(fields: [laboratoryId], references: [id])
+  product      Product    @relation(fields: [productId], references: [id])
+
+  @@id([laboratoryId, productId])
+}
+
+/// Append-only history of every unit movement (allocation, activation, refund, adjustment).
+model UnitLedgerEntry {
+  id                String        @id @default(uuid()) @db.Uuid
+  laboratoryId      String        @db.Uuid
+  productId         String        @db.Uuid
+  kind              UnitEntryKind
+  delta             Int
+  balanceAfter      Int
+  restorationCaseId String?       @db.Uuid
+  reference         String?
+  note              String?
+  actorId           String?       @db.Uuid
+  createdAt         DateTime      @default(now())
+  laboratory        Laboratory    @relation(fields: [laboratoryId], references: [id])
+  product           Product       @relation(fields: [productId], references: [id])
+
+  @@index([laboratoryId, productId, createdAt])
+  @@index([restorationCaseId])
+  @@index([createdAt])
 }
 
 /// Rate-limited patient identity verification attempts for private record disclosure.
@@ -633,8 +680,8 @@ model WarrantyClaim {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  warrantyCode    WarrantyCode       @relation(fields: [warrantyCodeId], references: [id])
-  restorationCase RestorationCase    @relation(fields: [restorationCaseId], references: [id])
+  warrantyCode    WarrantyCode         @relation(fields: [warrantyCodeId], references: [id])
+  restorationCase RestorationCase      @relation(fields: [restorationCaseId], references: [id])
   events          WarrantyClaimEvent[]
 
   @@index([status, createdAt])
@@ -642,13 +689,13 @@ model WarrantyClaim {
 }
 
 model WarrantyClaimEvent {
-  id         String       @id @default(uuid()) @db.Uuid
-  claimId    String       @db.Uuid
+  id         String        @id @default(uuid()) @db.Uuid
+  claimId    String        @db.Uuid
   fromStatus ClaimStatus?
   toStatus   ClaimStatus
   note       String?
-  actorId    String?      @db.Uuid
-  createdAt  DateTime     @default(now())
+  actorId    String?       @db.Uuid
+  createdAt  DateTime      @default(now())
   claim      WarrantyClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
 
   @@index([claimId, createdAt])

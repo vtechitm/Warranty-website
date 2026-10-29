@@ -40,7 +40,7 @@ export function WarrantyTable({ rows, hrefBase, showLab, showPatient }: { rows: 
                   {r.case?.installationStatus === "PENDING_CONFIRMATION" && !r.revokedAt && <StatusBadge status="PENDING_CONFIRMATION" label="Chờ ngày lắp" />}
                 </div>
               </td>
-              {showLab && <td className="text-sm">{r.assignedLaboratory?.name ?? <span className="text-muted">—</span>}</td>}
+              {showLab && <td className="text-sm">{r.case?.laboratory.name ?? <span className="text-muted">—</span>}</td>}
               <td className="text-sm">{r.case?.clinicName ?? <span className="text-muted">—</span>}</td>
               {showPatient && <td className="text-sm">{r.case?.patient.fullName ?? <span className="text-muted">—</span>}</td>}
               <td className="whitespace-nowrap text-sm">{r.activatedAt ? fmtDateTimeVN(r.activatedAt) : <span className="text-muted">—</span>}</td>

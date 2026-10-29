@@ -18,8 +18,8 @@ async function login(page: Page, user: { email: string; password: string }, expe
   await expect(page).toHaveURL(expectPath);
 }
 
-test("admin generates & assigns → lab activates → patient verifies", async ({ browser }) => {
-  // ── Admin: generate a batch of 5 and assign it to Labo Răng Sứ Sài Gòn ──
+test("admin generates cards & sells tooth units → lab activates → patient verifies", async ({ browser }) => {
+  // ── Admin: generate a batch of 5 cards (not assigned to any lab) ──
   const adminCtx = await browser.newContext();
   const admin = await adminCtx.newPage();
   await login(admin, ADMIN, /\/admin$/);
@@ -34,12 +34,18 @@ test("admin generates & assigns → lab activates → patient verifies", async (
   await expect(admin).toHaveURL(/\/admin\/batches\/[0-9a-f-]{36}$/);
   const batchId = admin.url().split("/").pop()!;
 
-  const lab = admin.locator('select[name="laboratoryId"]');
-  const labValue = await lab.locator("option", { hasText: "Labo Răng Sứ Sài Gòn" }).getAttribute("value");
-  await lab.selectOption(labValue!);
-  await admin.locator('input[name="quantity"]').fill("5");
-  await admin.getByRole("button", { name: "Cấp mã" }).click();
-  await expect(admin.getByText("Đã cấp 5 mã.")).toBeVisible();
+  // ── Admin: Labo Răng Sứ Sài Gòn buys 10 more tooth units of Origin Beyond Plus (seed: 200) ──
+  await admin.goto("/admin/units");
+  await admin.getByRole("button", { name: "Cấp đơn vị răng" }).click();
+  const lab = admin.locator('select[name="laboratoryId"][required]');
+  await lab.selectOption((await lab.locator("option", { hasText: "Labo Răng Sứ Sài Gòn" }).getAttribute("value"))!);
+  const unitProduct = admin.locator('select[name="productId"][required]');
+  await unitProduct.selectOption((await unitProduct.locator("option", { hasText: "Origin Beyond Plus" }).first().getAttribute("value"))!);
+  await admin.locator('input[name="units"]').fill("10");
+  await admin.locator('input[name="reference"]').fill("HD-E2E-001");
+  await admin.getByRole("button", { name: "Cấp", exact: true }).click();
+  const unitRow = admin.locator("tr", { hasText: "Labo Răng Sứ Sài Gòn" }).filter({ hasText: "Origin Beyond Plus" }).first();
+  await expect(unitRow).toContainText("210");
 
   await admin.goto(`/admin/warranties?batchId=${batchId}`);
   const code = (await admin.locator("a.mono").first().innerText()).trim();
@@ -58,8 +64,15 @@ test("admin generates & assigns → lab activates → patient verifies", async (
   await labPage.getByPlaceholder("Nguyễn Văn A").fill("Trần Thị E2E");
   await labPage.getByPlaceholder("09xx xxx xxx").fill("0912 345 678");
   await labPage.getByPlaceholder("Tìm hoặc nhập tên phòng khám").fill("Nha khoa Kiểm Thử");
+  // The balance shown on the form (seed allocations and demo activations included).
+  const unitsBox = labPage.getByText(/^Labo còn \d+ đơn vị răng phôi/);
+  await expect(unitsBox).toBeVisible();
+  const unitsBefore = Number((await unitsBox.innerText()).match(/còn (\d+)/)![1]);
+  expect(unitsBefore).toBeGreaterThanOrEqual(10);
+  // Units are required; picking teeth on the optional chart fills the count.
   await labPage.getByRole("button", { name: "Răng 11", exact: true }).click();
   await labPage.getByRole("button", { name: "Răng 21", exact: true }).click();
+  await expect(labPage.getByLabel("Số lượng răng *")).toHaveValue("2");
   const completion = await labPage.getByLabel("Ngày hoàn thành phục hình").inputValue();
   await labPage.getByLabel("Ngày lắp cho bệnh nhân").fill(completion);
   // Warranty is the lab's: pre-filled with Vtech's suggestion (10 years for this product); the lab picks 5 years.
@@ -69,6 +82,7 @@ test("admin generates & assigns → lab activates → patient verifies", async (
   await labPage.getByRole("checkbox", { name: /Nghị định 13\/2023/ }).check();
   await labPage.getByRole("button", { name: "KÍCH HOẠT" }).click();
 
+  await expect(labPage.getByText(`Labo còn ${unitsBefore - 2} đơn vị răng cho phôi này`)).toBeVisible();
   const accessCodeBox = labPage.getByText("Mã xác thực bệnh nhân").locator("..");
   await expect(accessCodeBox).toBeVisible();
   const accessCode = (await accessCodeBox.locator(".mono").innerText()).trim();

@@ -9,7 +9,8 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/server/crypto";
 import type { Actor } from "../src/server/auth/permissions";
-import { createAndGenerateBatch, assignCodes, revokeCode } from "../src/server/services/warranty-codes";
+import { createAndGenerateBatch, revokeCode } from "../src/server/services/warranty-codes";
+import { allocateUnits } from "../src/server/services/units";
 import { activateWarranty } from "../src/server/services/activation";
 import { landingSchema } from "../src/server/landing-schema";
 import { DEMO_LANDING } from "./demo-landing";
@@ -85,9 +86,10 @@ async function main() {
 
   const batch = await createAndGenerateBatch(adminActor, { productId: obp.id, quantity: 200, notes: "Lô demo" });
   const eliteBatch = await createAndGenerateBatch(adminActor, { productId: elz.id, quantity: 50, notes: "Lô demo Elite" });
-  await assignCodes(adminActor, { laboratoryId: labA.id, batchId: batch.id, serialFrom: 1, serialTo: 100, note: "Demo" });
-  await assignCodes(adminActor, { laboratoryId: labB.id, batchId: batch.id, serialFrom: 101, serialTo: 150, note: "Demo" });
-  await assignCodes(adminActor, { laboratoryId: labA.id, batchId: eliteBatch.id, quantity: 20, note: "Demo" });
+  // Labs buy blanks → Vtech allocates tooth units per product; cards themselves are not assigned to labs.
+  await allocateUnits(adminActor, { laboratoryId: labA.id, productId: obp.id, units: 200, kind: "ALLOCATION", reference: "HD-DEMO-001", note: "Demo" });
+  await allocateUnits(adminActor, { laboratoryId: labB.id, productId: obp.id, units: 50, kind: "ALLOCATION", reference: "HD-DEMO-002", note: "Demo" });
+  await allocateUnits(adminActor, { laboratoryId: labA.id, productId: elz.id, units: 40, kind: "ALLOCATION", reference: "HD-DEMO-003", note: "Demo" });
 
   const codes = await prisma.warrantyCode.findMany({ where: { batchId: batch.id }, orderBy: { serial: "asc" }, take: 6 });
   const eliteCodes = await prisma.warrantyCode.findMany({ where: { batchId: eliteBatch.id }, orderBy: { serial: "asc" }, take: 2 });
@@ -99,6 +101,7 @@ async function main() {
     clinic: { clinicId: null, name: clinic, dentistName: "BS. Phạm Quốc Khánh", phone: null },
     restoration: {
       restorationType: teeth.length > 2 ? "Cầu răng (Bridge)" : "Mão đơn (Crown)",
+      units: teeth.length,
       teeth: teeth.map((toothNumber) => ({ toothNumber, restorationType: null, shade: "A2", notes: null })),
       completionDate: d(completion), installationDate: install ? d(install) : null, warrantyMonths, materialLotNumber: "OBP-2026-09", notes: null,
     },

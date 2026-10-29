@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { History, Home, QrCode, Users } from "lucide-react";
+import { History, Home, QrCode, Users, Layers } from "lucide-react";
 import { requireActor } from "@/server/auth/session";
 import { prisma } from "@/server/db";
 import { LogoutButton } from "@/components/logout-button";
@@ -14,6 +14,7 @@ export default async function LabLayout({ children }: { children: React.ReactNod
     { href: "/lab", label: "Trang chủ", icon: Home },
     { href: "/lab/activate", label: "Kích hoạt", icon: QrCode },
     { href: "/lab/warranties", label: "Lịch sử", icon: History },
+    { href: "/lab/units", label: "Đơn vị răng", icon: Layers },
     ...(actor.role === "LAB_ADMIN" ? [{ href: "/lab/staff", label: "Nhân sự", icon: Users }] : []),
   ];
   return (

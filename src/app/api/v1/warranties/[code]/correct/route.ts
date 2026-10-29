@@ -12,6 +12,8 @@ const schema = z.object({
   installationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).transform((s) => new Date(`${s}T00:00:00Z`)).optional(),
   /** Lab-provided warranty duration (months); the end date is recomputed from the start date. */
   warrantyMonths: z.number().int().min(1).max(600).optional(),
+  /** Tooth units; the difference is consumed from / refunded to the lab's balance. */
+  units: z.number().int().min(1).max(32).optional(),
 });
 
 /** Authorized correction after activation; before/after is written to the audit log. */

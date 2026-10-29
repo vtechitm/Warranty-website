@@ -60,9 +60,8 @@ export default async function LabDetail({ params }: { params: Promise<{ id: stri
         }
       />
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Kpi label="Mã được cấp" value={fmtNumber(lab.stats.assigned)} />
-        <Kpi label="Đã kích hoạt" value={fmtNumber(lab.stats.activated)} />
-        <Kpi label="Chưa kích hoạt" value={fmtNumber(lab.stats.unactivated)} />
+        <Kpi label="Đơn vị răng còn lại" value={fmtNumber(lab.stats.unitsLeft)} sub={<a className="text-navy-700 underline" href={`/admin/units?laboratoryId=${lab.id}`}>Cấp / lịch sử</a>} />
+        <Kpi label="Ca đã kích hoạt" value={fmtNumber(lab.stats.activated)} />
         <Kpi label="Thương hiệu" value={lab.brands.length} sub={lab.brands.map((b) => b.brand.name).join(", ")} />
       </div>
       <div className="card grid gap-4 p-5 text-sm sm:grid-cols-4">

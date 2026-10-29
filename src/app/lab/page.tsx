@@ -35,11 +35,28 @@ export default async function LabHome() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Mã được cấp" value={fmtNumber(d.assigned)} icon={<ClipboardList />} />
-        <Kpi label="Chưa kích hoạt" value={fmtNumber(d.unactivated)} icon={<QrCode />} />
+        <Kpi label="Đơn vị răng còn lại" value={fmtNumber(d.unitsLeft)} icon={<ClipboardList />} sub={<Link className="text-navy-700 underline" href="/lab/units">Chi tiết theo phôi</Link>} />
+        <Kpi label="Loại phôi đã mua" value={fmtNumber(d.balances.length)} icon={<QrCode />} />
         <Kpi label="Đã kích hoạt" value={fmtNumber(d.activated)} icon={<CheckCircle2 />} />
         <Kpi label="Chờ ngày lắp" value={fmtNumber(d.pendingInstallation)} icon={<Hourglass />} sub={d.pendingInstallation ? <Link className="text-navy-700 underline" href="/lab/warranties?pending=1">Xác nhận ngay</Link> : undefined} />
       </div>
+
+      {d.balances.length > 0 && (
+        <section className="card overflow-hidden">
+          <h2 className="px-5 py-4 font-semibold">Đơn vị răng theo phôi</h2>
+          <ul className="divide-y divide-line">
+            {d.balances.map((b) => (
+              <li key={b.product.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <div className="min-w-0"><div className="font-medium">{b.product.name}</div><div className="text-xs text-muted">{b.product.brand.name} · đã dùng {fmtNumber(b.used)} / {fmtNumber(b.allocated)}</div></div>
+                <div className={`text-right text-lg font-bold ${b.balance <= 5 ? "text-red-600" : "text-navy-900"}`}>{fmtNumber(b.balance)}<div className="text-[11px] font-normal text-muted">còn lại</div></div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {d.balances.length === 0 && (
+        <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200">Labo chưa có đơn vị răng nào. Liên hệ Vtech để mua phôi — sau đó mới kích hoạt được thẻ cho bệnh nhân.</div>
+      )}
 
       <section className="card overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4">

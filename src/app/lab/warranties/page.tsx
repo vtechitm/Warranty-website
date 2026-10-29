@@ -33,7 +33,6 @@ export default async function LabWarranties({ searchParams }: { searchParams: Pr
         {sp.pending && <input type="hidden" name="pending" value="1" />}
         <Select name="status" defaultValue={sp.status ?? ""}>
           <option value="">Tất cả trạng thái</option>
-          <option value="ASSIGNED">Chưa kích hoạt</option>
           <option value="ACTIVATED">Đã kích hoạt</option>
           <option value="REVOKED">Đã thu hồi</option>
         </Select>

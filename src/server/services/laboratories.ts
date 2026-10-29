@@ -54,11 +54,11 @@ export async function getLaboratory(actor: Actor, id: string) {
     },
   });
   if (!lab) throw notFound();
-  const [assigned, activated] = await Promise.all([
-    prisma.warrantyCode.count({ where: { assignedLaboratoryId: id } }),
-    prisma.warrantyCode.count({ where: { assignedLaboratoryId: id, activationStatus: "ACTIVATED" } }),
+  const [activated, units] = await Promise.all([
+    prisma.restorationCase.count({ where: { laboratoryId: id, warrantyCode: { revokedAt: null } } }),
+    prisma.unitBalance.aggregate({ where: { laboratoryId: id }, _sum: { balance: true } }),
   ]);
-  return { ...lab, stats: { assigned, activated, unactivated: assigned - activated } };
+  return { ...lab, stats: { activated, unitsLeft: units._sum.balance ?? 0 } };
 }
 
 export async function createLaboratory(actor: Actor, input: z.infer<typeof laboratorySchema>) {

@@ -22,7 +22,10 @@ export const PERMISSIONS = {
   "lab-staff:manage": ["SUPER_ADMIN", "LAB_ADMIN"],
   "batch:read": ["SUPER_ADMIN", "BRAND_ADMIN"],
   "batch:generate": ["SUPER_ADMIN"],
-  "code:assign": ["SUPER_ADMIN"],
+  /** Sell / adjust tooth units of a laboratory (per product). */
+  "units:manage": ["SUPER_ADMIN"],
+  /** See all laboratories' unit balances and history (labs always see their own). */
+  "units:read": ["SUPER_ADMIN"],
   "code:revoke": ["SUPER_ADMIN"],
   "code:read-all": ["SUPER_ADMIN", "BRAND_ADMIN"],
   "code:read-lab": ["LAB_ADMIN", "LAB_STAFF"],

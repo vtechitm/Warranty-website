@@ -6,9 +6,11 @@ import ExcelJS from "exceljs";
 import { NextRequest } from "next/server";
 import { prisma } from "@/server/db";
 import { AppError } from "@/server/errors";
-import { createAndGenerateBatch, assignCodes } from "@/server/services/warranty-codes";
+import { createAndGenerateBatch } from "@/server/services/warranty-codes";
 import { activateWarranty } from "@/server/services/activation";
-import { confirmAssignmentImport, parseAssignmentSheet, parseCsv, previewAssignmentImport } from "@/server/services/assignment-import";
+import { confirmUnitImport, parseUnitSheet, previewUnitImport } from "@/server/services/unit-import";
+import { parseCsv } from "@/server/tabular";
+import { listUnitBalances } from "@/server/services/units";
 import { getClaimImage, sniffImageType, validateClaimImages } from "@/server/services/claim-images";
 import { listClaims, submitClaim } from "@/server/services/claims";
 import { readPatientAccessToken, requestPatientOtp, verifyPatientAccess } from "@/server/services/passport";
@@ -38,7 +40,6 @@ async function codesOf(quantity: number) {
 
 async function activeCode() {
   const [c] = await codesOf(1);
-  await assignCodes(ctx.admin, { laboratoryId: ctx.labA.id, codes: [c.code], note: null });
   const r = await activateWarranty(ctx.labAUser, c.code, activationInput());
   return { code: c.code, accessCode: r.accessCode };
 }
@@ -62,56 +63,49 @@ afterAll(() => {
   rmSync(storageDir, { recursive: true, force: true });
 });
 
-describe("Excel / CSV assignment import", () => {
+describe("Excel / CSV tooth-unit import", () => {
   it("parses CSV with quotes, BOM, semicolons and Vietnamese headers", () => {
-    expect(parseCsv('﻿a;"b;c"\r\n"x ""y""";z\n')).toEqual([["a", "b;c"], ['x "y"', "z"]]);
+    expect(parseCsv("\uFEFFa;" + '"b;c"' + "\r\n" + '"x ""y""";z' + "\n")).toEqual([["a", "b;c"], ['x "y"', "z"]]);
   });
 
-  it("previews without writing, reports every problem, then assigns per lab on confirm", async () => {
-    const codes = await codesOf(4);
-    const [used] = await codesOf(1);
-    await assignCodes(ctx.admin, { laboratoryId: ctx.labA.id, codes: [used.code], note: null });
-    await activateWarranty(ctx.labAUser, used.code, activationInput());
-    const csv = [
-      "Mã bảo hành,Mã labo",
-      `${codes[0].code},LAB-0001`,
-      `${codes[1].code.toLowerCase()},lab-0002`,
-      `${codes[0].code},LAB-0002`,
-      "ORG26-ZZZZZZZZ,LAB-0001",
-      "not-a-code,LAB-0001",
-      `${codes[2].code},LAB-9999`,
-      `${used.code},LAB-0001`,
-    ].join("\n");
-    const rows = await parseAssignmentSheet(Buffer.from(csv), "assign.csv");
-    expect(rows).toHaveLength(7);
-    const preview = await previewAssignmentImport(ctx.admin, rows);
-    expect(preview.summary).toMatchObject({ total: 7, valid: 2, invalid: 5 });
-    expect(preview.rows.map((r) => r.error)).toEqual([null, null, "Trùng với dòng 2", "Mã không tồn tại", "Mã không đúng định dạng", "Labo LAB-9999 không tồn tại", "Mã đã kích hoạt"]);
-    expect(await prisma.warrantyCode.count({ where: { assignmentStatus: "ASSIGNED" } })).toBe(1); // only the activated one
-
-    await expectAppError(confirmAssignmentImport(ctx.admin, rows, null), "VALIDATION_ERROR");
-    expect(await prisma.warrantyCode.count({ where: { assignmentStatus: "ASSIGNED" } })).toBe(1);
-
-    const good = rows.slice(0, 2);
-    const r = await confirmAssignmentImport(ctx.admin, good, null, "assign.csv");
-    expect(r.assigned).toBe(2);
-    const after = await prisma.warrantyCode.findMany({ where: { id: { in: [codes[0].id, codes[1].id] } }, orderBy: { serial: "asc" } });
-    expect(after.map((c) => c.assignedLaboratoryId)).toEqual([ctx.labA.id, ctx.labB.id]);
-    expect(await prisma.warrantyAssignment.count()).toBe(3);
-    expect(await prisma.auditLog.count({ where: { action: "code.import_assign" } })).toBe(1);
-  });
-
-  it("reads .xlsx without headers and flags unauthorized brands; non-admins are refused", async () => {
-    const [c] = await codesOf(1);
+  it("previews without writing, reports every problem, then allocates all rows in one go", async () => {
     const lonely = await prisma.laboratory.create({ data: { code: "LAB-0003", name: "Labo C" } });
+    const csv = [
+      "Mã labo,Mã phôi,Số đơn vị,Số hoá đơn",
+      "LAB-0001,OBP,50,HD-1",
+      "lab-0002,obp,1.000,HD-2",
+      "LAB-0001,OBP,20,HD-3",
+      "LAB-9999,OBP,5,HD-4",
+      "LAB-0001,XXX,5,HD-5",
+      "LAB-0001,OBP,-3,HD-6",
+      `${lonely.code},OBP,5,HD-7`,
+    ].join("\n");
+    const rows = await parseUnitSheet(Buffer.from(csv), "units.csv");
+    expect(rows).toHaveLength(7);
+    const preview = await previewUnitImport(ctx.admin, rows);
+    expect(preview.summary).toMatchObject({ total: 7, valid: 3, invalid: 4, units: 1070 });
+    expect(preview.rows.map((r) => r.error)).toEqual([null, null, null, "Labo LAB-9999 không tồn tại", "Không có phôi mã XXX", "Số đơn vị phải là số nguyên dương", "Labo chưa được ủy quyền cho thương hiệu của phôi này"]);
+    expect(preview.rows.map((r) => r.balanceAfter).slice(0, 3)).toEqual([150, 1100, 170]); // running balances (100 from the test seed)
+
+    await expectAppError(confirmUnitImport(ctx.admin, rows, null, "units.csv"), "VALIDATION_ERROR");
+    expect((await listUnitBalances(ctx.admin, { laboratoryId: ctx.labA.id }))[0].balance).toBe(100); // nothing written
+
+    const r = await confirmUnitImport(ctx.admin, rows.slice(0, 3), null, "units.csv");
+    expect(r).toEqual({ rows: 3, units: 1070 });
+    expect((await listUnitBalances(ctx.admin, { laboratoryId: ctx.labA.id }))[0].balance).toBe(170);
+    expect((await listUnitBalances(ctx.admin, { laboratoryId: ctx.labB.id }))[0].balance).toBe(1100);
+    expect(await prisma.unitLedgerEntry.count({ where: { reference: { in: ["HD-1", "HD-2", "HD-3"] } } })).toBe(3);
+    expect(await prisma.auditLog.count({ where: { action: "units.import" } })).toBe(1);
+  });
+
+  it("reads .xlsx without headers; non-admins are refused", async () => {
     const wb = new ExcelJS.Workbook();
-    wb.addWorksheet("x").addRows([[c.code, "LAB-0001"], [c.code, lonely.code]]);
-    const rows = await parseAssignmentSheet(Buffer.from(await wb.xlsx.writeBuffer()), "codes.xlsx");
-    expect(rows.map((r) => r.labCode)).toEqual(["LAB-0001", "LAB-0003"]);
-    const p = await previewAssignmentImport(ctx.admin, [rows[1]]);
-    expect(p.rows[0].error).toBe("Labo chưa được ủy quyền cho thương hiệu của mã");
-    await expectAppError(previewAssignmentImport(ctx.labAUser, rows), "FORBIDDEN");
-    await expectAppError(parseAssignmentSheet(Buffer.from("PK-not-really"), "x.xlsx"), "BAD_REQUEST", "INVALID_FILE");
+    wb.addWorksheet("x").addRows([["LAB-0001", "OBP", 10, "HD-9"]]);
+    const rows = await parseUnitSheet(Buffer.from(await wb.xlsx.writeBuffer()), "units.xlsx");
+    expect(rows).toEqual([{ row: 1, labCode: "LAB-0001", sku: "OBP", brandPrefix: null, units: "10", reference: "HD-9" }]);
+    expect((await previewUnitImport(ctx.admin, rows)).summary.valid).toBe(1);
+    await expectAppError(previewUnitImport(ctx.labAUser, rows), "FORBIDDEN");
+    await expectAppError(parseUnitSheet(Buffer.from("PK-not-really"), "x.xlsx"), "BAD_REQUEST", "INVALID_FILE");
   });
 });
 
